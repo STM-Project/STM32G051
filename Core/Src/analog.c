@@ -22,6 +22,10 @@ void Analog_Init(void)
   const uint32_t channels[ADC_INPUT_COUNT] = {
     ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3, ADC_CHANNEL_6, ADC_CHANNEL_7
   };
+  const uint32_t ranks[ADC_INPUT_COUNT] = {
+    ADC_REGULAR_RANK_1, ADC_REGULAR_RANK_2, ADC_REGULAR_RANK_3,
+    ADC_REGULAR_RANK_4, ADC_REGULAR_RANK_5
+  };
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_ADC_CLK_ENABLE();
@@ -50,7 +54,7 @@ void Analog_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_SEQ_FIXED;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = ADC_INPUT_COUNT;
@@ -63,9 +67,9 @@ void Analog_Init(void)
   hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_160CYCLES_5;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   Check(HAL_ADC_Init(&hadc1));
-  adc_channel.Rank = ADC_RANK_CHANNEL_NUMBER;
   adc_channel.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
+    adc_channel.Rank = ranks[i];
     adc_channel.Channel = channels[i];
     Check(HAL_ADC_ConfigChannel(&hadc1, &adc_channel));
   }
