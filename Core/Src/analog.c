@@ -3,8 +3,13 @@
 static ADC_HandleTypeDef hadc1;
 static DMA_HandleTypeDef hdma_adc1;
 static DAC_HandleTypeDef hdac1;
-/* Twenty complete scans, split into two DMA halves. */
-static uint16_t adc_dma[100];
+/* Twenty complete scans, split into two DMA halves. Each half must end
+ * on a scan boundary so callbacks never publish a partially updated scan. */
+#define ADC_DMA_SCAN_COUNT 20U
+#define ADC_DMA_SAMPLE_COUNT (ADC_INPUT_COUNT * ADC_DMA_SCAN_COUNT)
+#define ADC_DMA_HALF_SAMPLE_COUNT (ADC_DMA_SAMPLE_COUNT / 2U)
+_Static_assert(ADC_DMA_SCAN_COUNT % 2U == 0U, "DMA halves must contain complete scans");
+_Alignas(uint32_t) static volatile uint16_t adc_dma[ADC_DMA_SAMPLE_COUNT];
 static volatile uint16_t adc_latest[ADC_INPUT_COUNT];
 static volatile uint8_t adc_ready;
 static volatile uint8_t adc_fault;
@@ -91,7 +96,7 @@ void Analog_Init(void)
   Check(Analog_SetDAC(1, 0));
   Check(HAL_DAC_Start(&hdac1, DAC_CHANNEL_1));
   Check(HAL_DAC_Start(&hdac1, DAC_CHANNEL_2));
-  Check(HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_dma, 100));
+  Check(HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_dma, ADC_DMA_SAMPLE_COUNT));
 }
 
 HAL_StatusTypeDef Analog_SetDAC(uint8_t channel, uint16_t value)
@@ -119,11 +124,11 @@ static void Publish(uint32_t offset)
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *adc)
 {
-  if (adc == &hadc1) Publish(45);
+  if (adc == &hadc1) Publish(ADC_DMA_HALF_SAMPLE_COUNT - ADC_INPUT_COUNT);
 }
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
 {
-  if (adc == &hadc1) Publish(95);
+  if (adc == &hadc1) Publish(ADC_DMA_SAMPLE_COUNT - ADC_INPUT_COUNT);
 }
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *adc)
 {

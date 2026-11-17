@@ -34,7 +34,13 @@ ciągła konwersja, zegar 4 MHz, próbkowanie 160,5 cyklu.
 Kalibracja przy starcie jest pominięta na czas diagnostyki zatrzymania
 programu w `HAL_ADCEx_Calibration_Start`. Pomiary mogą mieć większy błąd
 offsetu; pominięcie kalibracji nie potwierdza usunięcia przyczyny zatrzymania.
-Około 4624 pełnych skanów/s. DMA1_Channel1 pracuje kołowo na 100 próbkach.
+Około 4624 pełnych skanów/s. DMA1_Channel1 pracuje w trybie Circular:
+Peripheral to Memory, half-word (16 bitów), Memory Increment włączone,
+Peripheral Increment wyłączone, priorytet High. ADC ma włączone Continuous
+Conversion i DMA Continuous Requests. Bufor zawiera 100 próbek (20 skanów),
+ma wyrównanie 32-bitowe i jest oznaczony volatile dla odczytów z DMA.
+W `.ioc` przypisanie DMA zapisane jest w sekcji `Dma.*` (wielkość liter ma
+znaczenie); włączone są przerwania DMA1_Channel1 i ADC1_COMP.
 Przerwania połowy/końca bufora publikują ostatni ukończony skan; odczyt
 pięciu wartości jest atomowy względem tych przerwań. Obsługa klawiatury
 nie blokuje konwersji. Błąd ADC/DMA powoduje pokazywanie `----` zamiast
@@ -105,6 +111,7 @@ make -j4
 python3 tests/test_keys.py
 python3 tests/test_radio.py
 python3 tests/test_screens.py
+python3 tests/test_adc_dma.py
 ```
 
 Wyniki: `build/STM32G051.elf`, `.hex`, `.bin`, `.map`. Makefile obsługuje
@@ -116,6 +123,9 @@ ograniczenia strojenia, wzór dzielnika, adresy/kolejność bajtów PCF8575
 i obsługę błędów transmisji. Test ekranów renderuje cztery przykłady
 i ekran FM przez rzeczywiste fonty/sterownik SSD1306 do atrapy wyświetlacza;
 sprawdza powtarzalność kolorów, adresy OLED i widoczność błędów PCF.
+Test ADC/DMA wykonuje rzeczywisty moduł analogowy z atrapą HAL: sprawdza
+konfigurację kołową, kolejność pięciu rang, start transferu, kolejne obroty
+obu połówek bufora, spójność odczytu, obsługę przerwań i błędów.
 Testy nie zastępują weryfikacji na płytce.
 
 Konfigurację pinów i peryferiów odzwierciedla `STM32G051.ioc`; nie wykonano

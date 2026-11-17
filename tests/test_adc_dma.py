@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Exercise real ADC init and DMA callbacks with a host HAL mock (no hardware)."""
+import pathlib
+import re
+import shutil
+import subprocess
+import tempfile
+root = pathlib.Path(__file__).resolve().parents[1]
+source = (root/'Core/Src/analog.c').read_text()
+with tempfile.TemporaryDirectory() as tmp:
+    out = pathlib.Path(tmp)
+    shutil.copy(root/'Core/Src/analog.c', out/'analog.c')
+    shutil.copy(root/'Core/Inc/analog.h', out/'analog.h')
+    # Opaque HAL constants: unique values let assertions distinguish settings.
+    constants = sorted(set(re.findall(r'\b(?:ADC|DAC|DMA|GPIO)_[A-Z][A-Z_0-9]*\b', source)) -
+                       {'ADC_INPUT_COUNT', 'ADC_DMA_SCAN_COUNT', 'ADC_DMA_SAMPLE_COUNT', 'ADC_DMA_HALF_SAMPLE_COUNT'})
+    defines = '\n'.join(f'#define {name} {i+1}U' for i, name in enumerate(constants))
+    fields = '''Request Direction PeriphInc MemInc PeriphDataAlignment MemDataAlignment Mode Priority
+ClockPrescaler Resolution DataAlign ScanConvMode EOCSelection ContinuousConvMode NbrOfConversion
+DiscontinuousConvMode ExternalTrigConv ExternalTrigConvEdge DMAContinuousRequests Overrun
+SamplingTimeCommon1 SamplingTimeCommon2 TriggerFrequencyMode'''.split()
+    (out/'main.h').write_text('''#ifndef MOCK_MAIN_H
+#define MOCK_MAIN_H
+#include <stdint.h>
+#include <stddef.h>
+typedef enum { HAL_OK, HAL_ERROR } HAL_StatusTypeDef;
+#define ENABLE 1U
+#define DISABLE 0U
+#define ADC1 ((void *)1)
+#define DAC1 ((void *)2)
+#define DMA1_Channel1 ((void *)3)
+#define GPIOA ((void *)4)
+#define DMA1_Channel1_IRQn 9
+#define ADC1_COMP_IRQn 12
+''' + defines + '\ntypedef struct { '+ ''.join('uint32_t '+f+';' for f in fields) + ''' } Config;
+typedef struct DMA_HandleTypeDef { void *Instance; Config Init; void *Parent; } DMA_HandleTypeDef;
+typedef struct { void *Instance; Config Init; DMA_HandleTypeDef *DMA_Handle; } ADC_HandleTypeDef;
+typedef struct { void *Instance; } DAC_HandleTypeDef;
+typedef struct { uint32_t Pin, Mode, Pull; } GPIO_InitTypeDef;
+typedef struct { uint32_t Rank, SamplingTime, Channel; } ADC_ChannelConfTypeDef;
+typedef struct { uint32_t DAC_SampleAndHold, DAC_Trigger, DAC_OutputBuffer,
+DAC_ConnectOnChipPeripheral, DAC_UserTrimming; } DAC_ChannelConfTypeDef;
+#define __HAL_RCC_GPIOA_CLK_ENABLE() ((void)0)
+#define __HAL_RCC_DMA1_CLK_ENABLE() ((void)0)
+#define __HAL_RCC_ADC_CLK_ENABLE() ((void)0)
+#define __HAL_RCC_DAC1_CLK_ENABLE() ((void)0)
+#define __HAL_LINKDMA(h,f,d) ((h)->f=&(d), (d).Parent=(h))
+void Error_Handler(void);
+void HAL_GPIO_Init(void *, GPIO_InitTypeDef *);
+HAL_StatusTypeDef HAL_DMA_Init(DMA_HandleTypeDef *);
+void HAL_NVIC_SetPriority(int, int, int);
+void HAL_NVIC_EnableIRQ(int);
+HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef *);
+HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *, ADC_ChannelConfTypeDef *);
+HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef *);
+HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef *, DAC_ChannelConfTypeDef *, uint32_t);
+HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *, uint32_t);
+HAL_StatusTypeDef HAL_DAC_SetValue(DAC_HandleTypeDef *, uint32_t, uint32_t, uint32_t);
+HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *, uint32_t *, uint32_t);
+void HAL_DMA_IRQHandler(DMA_HandleTypeDef *);
+void HAL_ADC_IRQHandler(ADC_HandleTypeDef *);
+uint32_t __get_PRIMASK(void);
+void __disable_irq(void);
+void __set_PRIMASK(uint32_t);
+#endif
+''')
+    (out/'test.c').write_text('''
+#include "analog.c"
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+static unsigned configured, dma_irq, adc_irq, started;
+static uint32_t mask;
+void Error_Handler(void) { abort(); }
+void HAL_GPIO_Init(void *p, GPIO_InitTypeDef *g) { (void)p; (void)g; }
+HAL_StatusTypeDef HAL_DMA_Init(DMA_HandleTypeDef *d) {
+  assert(d->Instance==DMA1_Channel1 && d->Init.Request==DMA_REQUEST_ADC1);
+  assert(d->Init.Mode==DMA_CIRCULAR && d->Init.Direction==DMA_PERIPH_TO_MEMORY);
+  assert(d->Init.MemInc==DMA_MINC_ENABLE && d->Init.PeriphInc==DMA_PINC_DISABLE);
+  assert(d->Init.MemDataAlignment==DMA_MDATAALIGN_HALFWORD);
+  assert(d->Init.PeriphDataAlignment==DMA_PDATAALIGN_HALFWORD);
+  return HAL_OK;
+}
+void HAL_NVIC_SetPriority(int irq,int p,int s) { (void)irq; (void)p; (void)s; }
+void HAL_NVIC_EnableIRQ(int irq) { if(irq==9) dma_irq=1; if(irq==12) adc_irq=1; }
+HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef *a) {
+  assert(a->DMA_Handle==&hdma_adc1 && a->DMA_Handle->Parent==a);
+  assert(a->Init.ContinuousConvMode==ENABLE && a->Init.DMAContinuousRequests==ENABLE);
+  assert(a->Init.ScanConvMode==ADC_SCAN_ENABLE && a->Init.NbrOfConversion==5);
+  return HAL_OK;
+}
+HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *a,ADC_ChannelConfTypeDef *c) {
+  const uint32_t ch[]={ADC_CHANNEL_1,ADC_CHANNEL_2,ADC_CHANNEL_3,ADC_CHANNEL_6,ADC_CHANNEL_7};
+  const uint32_t rank[]={ADC_REGULAR_RANK_1,ADC_REGULAR_RANK_2,ADC_REGULAR_RANK_3,ADC_REGULAR_RANK_4,ADC_REGULAR_RANK_5};
+  assert(a==&hadc1 && configured<5);
+  assert(c->Channel==ch[configured] && c->Rank==rank[configured]); ++configured;
+  return HAL_OK;
+}
+HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef *d) { (void)d; return HAL_OK; }
+HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef *d,DAC_ChannelConfTypeDef *c,uint32_t ch) { (void)d;(void)c;(void)ch; return HAL_OK; }
+HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *d,uint32_t ch) { (void)d;(void)ch; return HAL_OK; }
+HAL_StatusTypeDef HAL_DAC_SetValue(DAC_HandleTypeDef *d,uint32_t ch,uint32_t al,uint32_t v) { (void)d;(void)ch;(void)al;(void)v; return HAL_OK; }
+HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *a,uint32_t *buf,uint32_t n) {
+  assert(a==&hadc1 && configured==5 && dma_irq && adc_irq);
+  assert((void *)buf==(void *)adc_dma && n==100 && ((uintptr_t)buf%4)==0);
+  ++started; return HAL_OK;
+}
+void HAL_DMA_IRQHandler(DMA_HandleTypeDef *d) { assert(d==&hdma_adc1); }
+void HAL_ADC_IRQHandler(ADC_HandleTypeDef *a) { assert(a==&hadc1); }
+uint32_t __get_PRIMASK(void) { return mask; }
+void __disable_irq(void) { mask=1; }
+void __set_PRIMASK(uint32_t m) { mask=m; }
+int main(void) {
+  uint16_t result[5];
+  Analog_Init(); assert(started==1 && !Analog_Read(result));
+  ADC_HandleTypeDef unrelated={0};
+  HAL_ADC_ConvCpltCallback(&unrelated); assert(!Analog_Read(result));
+  for(unsigned round=0;round<4;round++) {
+    for(unsigned i=0;i<50;i++) adc_dma[i]=100*round+i;
+    HAL_ADC_ConvHalfCpltCallback(&hadc1);
+    assert(Analog_Read(result));
+    for(unsigned i=0;i<5;i++) assert(result[i]==100*round+45+i);
+    for(unsigned i=50;i<100;i++) adc_dma[i]=100*round+i;
+    HAL_ADC_ConvCpltCallback(&hadc1);
+    mask=1; assert(Analog_Read(result) && mask==1); mask=0;
+    for(unsigned i=0;i<5;i++) assert(result[i]==100*round+95+i);
+  }
+  DMA1_Channel1_IRQHandler(); ADC1_COMP_IRQHandler();
+  HAL_ADC_ErrorCallback(&unrelated); assert(Analog_Read(result));
+  HAL_ADC_ErrorCallback(&hadc1); assert(!Analog_Read(result));
+  puts("PASS: circular DMA init, scan ranks, repeated half/full callbacks, coherent snapshots, IRQ routing, errors");
+}
+''')
+    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',str(out/'test.c'),'-o',str(out/'test')],check=True)
+    subprocess.run([str(out/'test')],check=True)
