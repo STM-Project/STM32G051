@@ -65,22 +65,33 @@ static uint8_t poll(uint32_t t, uint8_t k) { tick=t; keys=k; return INPUT_PollPr
 int main(void) {
   assert(poll(0,0)==0);
   assert(poll(1,1)==0); assert(poll(20,0)==0); /* bounce */
-  assert(poll(25,1)==0); assert(poll(54,1)==0); assert(poll(55,1)==1);
+  assert(poll(25,1)==0); assert(poll(54,1)==0); assert(poll(55,1)==0);
+  assert(poll(154,1)==0); assert(poll(155,1)==1);
   assert(poll(1000,1)==0); /* held key never repeats */
   assert(poll(1001,0)==0); assert(poll(1020,1)==0); assert(poll(1050,1)==0);
   assert(poll(1051,0)==0); assert(poll(1081,0)==0);
-  assert(poll(1082,2)==0); assert(poll(1112,2)==2);
-  assert(poll(1113,0)==0); assert(poll(1143,0)==0);
-  assert(poll(1144,4)==0); assert(poll(1174,4)==4);
-  assert(poll(1175,0)==0); assert(poll(1205,0)==0);
-  assert(poll(1206,8)==0); assert(poll(1236,8)==8);
-  assert(poll(1237,0)==0); assert(poll(1267,0)==0);
-  assert(poll(1268,3)==0); assert(poll(1298,3)==3); /* chord once */
-  assert(poll(1299,1)==0); assert(poll(1329,1)==0); /* no action until release */
-  assert(poll(1330,0)==0); assert(poll(1360,0)==0);
-  assert(poll(UINT32_MAX-10,1)==0); assert(poll(18,1)==0);
-  assert(poll(19,1)==1); /* debounce across tick wrap */
-  puts("PASS: pin mapping, bounce, hold, release, chords, tick wrap");
+  assert(poll(1082,2)==0); assert(poll(1112,2)==0); assert(poll(1212,2)==2);
+  assert(poll(1213,0)==0); assert(poll(1243,0)==0);
+  assert(poll(1244,4)==0); assert(poll(1274,4)==0); assert(poll(1374,4)==4);
+  assert(poll(1375,0)==0); assert(poll(1405,0)==0);
+  assert(poll(1406,8)==0); assert(poll(1436,8)==0); assert(poll(1536,8)==8);
+  assert(poll(1537,0)==0); assert(poll(1567,0)==0);
+  /* Staggered chord: first key must not fire a single-key event. */
+  assert(poll(1600,1)==0); assert(poll(1630,1)==0);
+  assert(poll(1680,3)==0); assert(poll(1710,3)==0); assert(poll(1730,3)==3);
+  assert(poll(1731,1)==0); assert(poll(1761,1)==0); /* partial release */
+  assert(poll(1762,0)==0); assert(poll(1792,0)==0);
+  /* Third key arrives at the collection deadline: let debounce finish. */
+  assert(poll(1800,5)==0); assert(poll(1830,5)==0);
+  assert(poll(1920,7)==0); assert(poll(1930,7)==0); assert(poll(1950,7)==7);
+  assert(poll(1951,0)==0); assert(poll(1981,0)==0);
+  /* Short taps are emitted on release without waiting 100 ms. */
+  assert(poll(2000,8)==0); assert(poll(2030,8)==0);
+  assert(poll(2040,0)==0); assert(poll(2070,0)==8);
+  /* Stable 30 ms and collection 100 ms across unsigned tick rollover. */
+  assert(poll(UINT32_MAX-50,1)==0); assert(poll(UINT32_MAX-20,1)==0);
+  assert(poll(78,1)==0); assert(poll(79,1)==1);
+  puts("PASS: pins, bounce, hold, short taps, staggered chords, tick wrap");
 }
 ''')
     subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', str(out/'gpio.c'), str(out/'test.c'), '-o', str(out/'test')], check=True)

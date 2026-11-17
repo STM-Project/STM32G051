@@ -25,6 +25,8 @@
 #include "i2c.h"
 #include "analog.h"
 #include "ssd1306.h"
+#include "screens.h"
+#include "radio.h"
 #include <stdio.h>
 
 /* USER CODE END Includes */
@@ -51,6 +53,10 @@ static uint16_t dac_value[2];
 static uint8_t selected_dac;
 static uint8_t oled_ready;
 static uint16_t oled_address;
+typedef enum { SCREEN_ADC, SCREEN_FM, SCREEN_DEMO0, SCREEN_DEMO1,
+               SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO } Screen;
+static Screen screen;
+static uint8_t display_dirty;
 
 
 /* USER CODE END PV */
@@ -76,14 +82,12 @@ static void OLED_Init(void)
   }
 }
 
-static void UpdateDisplay(void)
+static void DrawAnalog(void)
 {
   uint16_t adc[ADC_INPUT_COUNT];
   const uint8_t channels[ADC_INPUT_COUNT] = {1, 2, 3, 6, 7};
   char line[24];
-  if (!oled_ready) return;
   uint8_t valid = Analog_Read(adc);
-  SSD1306_DispBK(oled_address, NoInvert);
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
     if (valid) snprintf(line, sizeof(line), "ADC%u: %4u", channels[i], adc[i]);
     else snprintf(line, sizeof(line), "ADC%u: ----", channels[i]);
@@ -93,19 +97,46 @@ static void UpdateDisplay(void)
            selected_dac == 0 ? '>' : ' ', dac_value[0],
            selected_dac == 1 ? '>' : ' ', dac_value[1]);
   SSD1306_Txt(0, 54, line, Font_7x10, NoInvert);
+}
+
+static void UpdateDisplay(void)
+{
+  if (!oled_ready) return;
+  SSD1306_DispBK(oled_address, NoInvert);
+  switch (screen) {
+    case SCREEN_ADC: DrawAnalog(); break;
+    case SCREEN_FM: Screen_DrawRadio(); break;
+    case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
+    default: Screen_DrawExample((uint8_t)(screen - SCREEN_DEMO0)); break;
+  }
   ssd1306_UpdateScreen();
 }
 
 static void ServiceKeys(void)
 {
-  switch (INPUT_PollPress()) {
+  uint8_t keys = INPUT_PollPress();
+  if (keys == 0) return;
+  display_dirty = 1;
+  switch (keys) {
+    case 3: screen = SCREEN_ADC; return;   /* pin1+pin2 */
+    case 5: screen = SCREEN_FM; Radio_Apply(); return; /* pin1+pin3 */
+    case 6: screen = SCREEN_DEMO0; return; /* pin2+pin3 */
+    case 9: screen = SCREEN_DEMO1; return; /* pin1+pin4 */
+    case 10: screen = SCREEN_DEMO2; return; /* pin2+pin4 */
+    case 12: screen = SCREEN_DEMO3; return; /* pin3+pin4 */
+    case 7: screen = SCREEN_INTRO; return; /* pin1+pin2+pin3 */
+    default: break;
+  }
+  if (screen == SCREEN_FM) { Radio_Key(keys); return; }
+  if (screen != SCREEN_ADC) return;
+  switch (keys) {
     case 1: dac_value[selected_dac] = dac_value[selected_dac] > 4031 ?
                                     4095 : dac_value[selected_dac] + 64; break;
     case 2: dac_value[selected_dac] = dac_value[selected_dac] < 64 ?
                                     0 : dac_value[selected_dac] - 64; break;
     case 4: selected_dac ^= 1; break;
     case 8: dac_value[selected_dac] = 0; break;
-    default: return; /* Ignore chords; require release before another action. */
+    default: return;
   }
   if (Analog_SetDAC(selected_dac, dac_value[selected_dac]) != HAL_OK)
     Error_Handler();
@@ -162,7 +193,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     ServiceKeys();
-    if ((uint32_t)(HAL_GetTick() - display_tick) >= 200U) {
+    if (display_dirty || (uint32_t)(HAL_GetTick() - display_tick) >= 200U) {
+      display_dirty = 0;
       display_tick = HAL_GetTick();
       UpdateDisplay();
     }

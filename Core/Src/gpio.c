@@ -150,12 +150,13 @@ int INPUT_IsAnyPress(INPUT_PIN *in, int size){
 
 /* USER CODE END 2 */
 
-/* Nonblocking debounced press events, bit 0..3 = pin1..pin4.
- * Report each chord once; all keys must be released before the next event. */
+/* Nonblocking events: bit 0..3 = pin1..pin4. Debounce each stable
+ * transition for 30 ms, then allow 100 ms to collect a multi-key chord.
+ * A short tap is emitted on debounced release. Never repeat while held. */
 uint8_t INPUT_PollPress(void)
 {
-  static uint8_t candidate, stable, armed = 1;
-  static uint32_t changed;
+  static uint8_t candidate, stable, armed = 1, collecting, pending;
+  static uint32_t changed, started;
   uint8_t raw = 0;
   const INPUT_PIN pins[4] = {
     {GPIOB, GPIO_PIN_7}, {GPIOC, GPIO_PIN_14},
@@ -168,8 +169,21 @@ uint8_t INPUT_PollPress(void)
   if (raw != candidate) { candidate = raw; changed = now; }
   if (candidate != stable && (uint32_t)(now - changed) >= 30U) {
     stable = candidate;
-    if (stable == 0) armed = 1;
-    else if (armed) { armed = 0; return stable; }
+    if (stable == 0) {
+      armed = 1;
+      if (collecting) { collecting = 0; return pending; }
+    } else if (armed) {
+      if (!collecting) { collecting = 1; pending = 0; started = now; }
+      pending |= stable;
+    }
+  }
+  /* Wait for a changing raw mask to settle, so a second key arriving near
+   * the deadline cannot accidentally cause the first key to fire alone. */
+  if (collecting && candidate == stable && stable != 0 &&
+      (uint32_t)(now - started) >= 100U) {
+    collecting = 0;
+    armed = 0;
+    return pending;
   }
   return 0;
 }

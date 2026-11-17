@@ -69,7 +69,8 @@ void Analog_Init(void)
     adc_channel.Channel = channels[i];
     Check(HAL_ADC_ConfigChannel(&hadc1, &adc_channel));
   }
-  Check(HAL_ADCEx_Calibration_Start(&hadc1));
+  /* Calibration intentionally skipped while diagnosing the startup stall.
+   * ADC conversions still run, with potentially increased offset error. */
   HAL_NVIC_SetPriority(ADC1_COMP_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(ADC1_COMP_IRQn);
 
