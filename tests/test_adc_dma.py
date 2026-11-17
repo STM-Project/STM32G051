@@ -6,11 +6,14 @@ import shutil
 import subprocess
 import tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
-source = (root/'Core/Src/analog.c').read_text()
+source = '\n'.join((root/'Core/Src'/name).read_text() for name in ('analog.c','adc.c','dac.c','dma.c'))
 with tempfile.TemporaryDirectory() as tmp:
     out = pathlib.Path(tmp)
     shutil.copy(root/'Core/Src/analog.c', out/'analog.c')
     shutil.copy(root/'Core/Inc/analog.h', out/'analog.h')
+    for name in ('adc','dac','dma'):
+        shutil.copy(root/'Core/Src'/(name+'.c'), out/(name+'.c'))
+        shutil.copy(root/'Core/Inc'/(name+'.h'), out/(name+'.h'))
     # Opaque HAL constants: unique values let assertions distinguish settings.
     constants = sorted(set(re.findall(r'\b(?:ADC|DAC|DMA|GPIO)_[A-Z][A-Z_0-9]*\b', source)) -
                        {'ADC_INPUT_COUNT', 'ADC_DMA_SCAN_COUNT', 'ADC_DMA_SAMPLE_COUNT', 'ADC_DMA_HALF_SAMPLE_COUNT'})
@@ -65,6 +68,9 @@ void __set_PRIMASK(uint32_t);
 #endif
 ''')
     (out/'test.c').write_text('''
+#include "adc.c"
+#include "dac.c"
+#include "dma.c"
 #include "analog.c"
 #include <assert.h>
 #include <stdlib.h>
@@ -84,6 +90,7 @@ HAL_StatusTypeDef HAL_DMA_Init(DMA_HandleTypeDef *d) {
 void HAL_NVIC_SetPriority(int irq,int p,int s) { (void)irq; (void)p; (void)s; }
 void HAL_NVIC_EnableIRQ(int irq) { if(irq==9) dma_irq=1; if(irq==12) adc_irq=1; }
 HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef *a) {
+  HAL_ADC_MspInit(a);
   assert(a->DMA_Handle==&hdma_adc1 && a->DMA_Handle->Parent==a);
   assert(a->Init.ContinuousConvMode==ENABLE && a->Init.DMAContinuousRequests==ENABLE);
   assert(a->Init.ScanConvMode==ADC_SCAN_ENABLE && a->Init.NbrOfConversion==5);
@@ -96,7 +103,7 @@ HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *a,ADC_ChannelConfType
   assert(c->Channel==ch[configured] && c->Rank==rank[configured]); ++configured;
   return HAL_OK;
 }
-HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef *d) { (void)d; return HAL_OK; }
+HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef *d) { HAL_DAC_MspInit(d); return HAL_OK; }
 HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef *d,DAC_ChannelConfTypeDef *c,uint32_t ch) { (void)d;(void)c;(void)ch; return HAL_OK; }
 HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *d,uint32_t ch) { (void)d;(void)ch; return HAL_OK; }
 HAL_StatusTypeDef HAL_DAC_SetValue(DAC_HandleTypeDef *d,uint32_t ch,uint32_t al,uint32_t v) { (void)d;(void)ch;(void)al;(void)v; return HAL_OK; }
@@ -112,6 +119,7 @@ void __disable_irq(void) { mask=1; }
 void __set_PRIMASK(uint32_t m) { mask=m; }
 int main(void) {
   uint16_t result[5];
+  MX_DMA_Init(); MX_ADC1_Init(); MX_DAC1_Init();
   Analog_Init(); assert(started==1 && !Analog_Read(result));
   ADC_HandleTypeDef unrelated={0};
   HAL_ADC_ConvCpltCallback(&unrelated); assert(!Analog_Read(result));
@@ -125,7 +133,7 @@ int main(void) {
     mask=1; assert(Analog_Read(result) && mask==1); mask=0;
     for(unsigned i=0;i<5;i++) assert(result[i]==100*round+95+i);
   }
-  DMA1_Channel1_IRQHandler(); ADC1_COMP_IRQHandler();
+  HAL_DMA_IRQHandler(&hdma_adc1); HAL_ADC_IRQHandler(&hadc1);
   HAL_ADC_ErrorCallback(&unrelated); assert(Analog_Read(result));
   HAL_ADC_ErrorCallback(&hadc1); assert(!Analog_Read(result));
   puts("PASS: circular DMA init, scan ranks, repeated half/full callbacks, coherent snapshots, IRQ routing, errors");

@@ -37,9 +37,9 @@ extern "C" {
 /* USER CODE END Private defines */
 
 void MX_GPIO_Init(void);
-uint8_t INPUT_PollPress(void);
 
 /* USER CODE BEGIN Prototypes */
+uint8_t INPUT_PollPress(void);
 
 
 int  		MX_GPIO_IsPress	 		(GPIO_TypeDef const *GPIOx, uint16_t GPIO_Pin);

@@ -1,0 +1,17 @@
+#ifndef __ADC_H__
+#define __ADC_H__
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "main.h"
+/* USER CODE BEGIN Includes */
+/* USER CODE END Includes */
+extern ADC_HandleTypeDef hadc1;
+extern DMA_HandleTypeDef hdma_adc1;
+void MX_ADC1_Init(void);
+/* USER CODE BEGIN Prototypes */
+/* USER CODE END Prototypes */
+#ifdef __cplusplus
+}
+#endif
+#endif

@@ -1,8 +1,7 @@
 #include "analog.h"
+#include "adc.h"
+#include "dac.h"
 
-static ADC_HandleTypeDef hadc1;
-static DMA_HandleTypeDef hdma_adc1;
-static DAC_HandleTypeDef hdac1;
 /* Twenty complete scans, split into two DMA halves. Each half must end
  * on a scan boundary so callbacks never publish a partially updated scan. */
 #define ADC_DMA_SCAN_COUNT 20U
@@ -21,77 +20,6 @@ static void Check(HAL_StatusTypeDef status)
 
 void Analog_Init(void)
 {
-  GPIO_InitTypeDef gpio = {0};
-  ADC_ChannelConfTypeDef adc_channel = {0};
-  DAC_ChannelConfTypeDef dac_channel = {0};
-  const uint32_t channels[ADC_INPUT_COUNT] = {
-    ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3, ADC_CHANNEL_6, ADC_CHANNEL_7
-  };
-  const uint32_t ranks[ADC_INPUT_COUNT] = {
-    ADC_REGULAR_RANK_1, ADC_REGULAR_RANK_2, ADC_REGULAR_RANK_3,
-    ADC_REGULAR_RANK_4, ADC_REGULAR_RANK_5
-  };
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_DMA1_CLK_ENABLE();
-  __HAL_RCC_ADC_CLK_ENABLE();
-  __HAL_RCC_DAC1_CLK_ENABLE();
-  gpio.Pin = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 |
-             GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
-  gpio.Mode = GPIO_MODE_ANALOG;
-  gpio.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &gpio);
-
-  hdma_adc1.Instance = DMA1_Channel1;
-  hdma_adc1.Init.Request = DMA_REQUEST_ADC1;
-  hdma_adc1.Init.Direction = DMA_PERIPH_TO_MEMORY;
-  hdma_adc1.Init.PeriphInc = DMA_PINC_DISABLE;
-  hdma_adc1.Init.MemInc = DMA_MINC_ENABLE;
-  hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
-  hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
-  hdma_adc1.Init.Mode = DMA_CIRCULAR;
-  hdma_adc1.Init.Priority = DMA_PRIORITY_HIGH;
-  Check(HAL_DMA_Init(&hdma_adc1));
-  __HAL_LINKDMA(&hadc1, DMA_Handle, hdma_adc1);
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
-  hadc1.Init.ContinuousConvMode = ENABLE;
-  hadc1.Init.NbrOfConversion = ADC_INPUT_COUNT;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
-  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
-  hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_160CYCLES_5;
-  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
-  Check(HAL_ADC_Init(&hadc1));
-  adc_channel.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
-  for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
-    adc_channel.Rank = ranks[i];
-    adc_channel.Channel = channels[i];
-    Check(HAL_ADC_ConfigChannel(&hadc1, &adc_channel));
-  }
-  /* Calibration intentionally skipped while diagnosing the startup stall.
-   * ADC conversions still run, with potentially increased offset error. */
-  HAL_NVIC_SetPriority(ADC1_COMP_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(ADC1_COMP_IRQn);
-
-  hdac1.Instance = DAC1;
-  Check(HAL_DAC_Init(&hdac1));
-  dac_channel.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  dac_channel.DAC_Trigger = DAC_TRIGGER_NONE;
-  dac_channel.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  dac_channel.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
-  dac_channel.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
-  Check(HAL_DAC_ConfigChannel(&hdac1, &dac_channel, DAC_CHANNEL_1));
-  Check(HAL_DAC_ConfigChannel(&hdac1, &dac_channel, DAC_CHANNEL_2));
   Check(Analog_SetDAC(0, 0));
   Check(Analog_SetDAC(1, 0));
   Check(HAL_DAC_Start(&hdac1, DAC_CHANNEL_1));
@@ -134,5 +62,3 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *adc)
 {
   if (adc == &hadc1) adc_fault = 1;
 }
-void DMA1_Channel1_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_adc1); }
-void ADC1_COMP_IRQHandler(void) { HAL_ADC_IRQHandler(&hadc1); }

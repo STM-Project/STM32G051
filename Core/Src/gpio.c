@@ -52,15 +52,10 @@ void MX_GPIO_Init(void)
   g.Pin = GPIO_PIN_7; HAL_GPIO_Init(GPIOB, &g);
   g.Pin = GPIO_PIN_14 | GPIO_PIN_15; HAL_GPIO_Init(GPIOC, &g);
   g.Pin = GPIO_PIN_2; HAL_GPIO_Init(GPIOF, &g);
-  /* Reserve the timer outputs shown in the schematic; timers are not started. */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  g.Mode = GPIO_MODE_AF_PP;
-  g.Pull = GPIO_NOPULL;
-  g.Speed = GPIO_SPEED_FREQ_LOW;
-  g.Pin = GPIO_PIN_0; g.Alternate = GPIO_AF2_TIM2; HAL_GPIO_Init(GPIOA, &g);
-  g.Pin = GPIO_PIN_3; g.Alternate = GPIO_AF1_TIM3; HAL_GPIO_Init(GPIOB, &g);
+
 }
 
+/* USER CODE BEGIN 2 */
 int MX_GPIO_IsPress(GPIO_TypeDef const *GPIOx, uint16_t GPIO_Pin){
 	if(GPIO_PIN_RESET==HAL_GPIO_ReadPin(GPIOx,GPIO_Pin)){
 		HAL_Delay(TIME_FOR_PRESS);
@@ -148,7 +143,6 @@ int INPUT_IsAnyPress(INPUT_PIN *in, int size){
 	return 0;
 }
 
-/* USER CODE END 2 */
 
 /* Nonblocking events: bit 0..3 = pin1..pin4. Debounce each stable
  * transition for 30 ms, then allow 100 ms to collect a multi-key chord.
@@ -187,3 +181,5 @@ uint8_t INPUT_PollPress(void)
   }
   return 0;
 }
+
+/* USER CODE END 2 */

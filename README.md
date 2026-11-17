@@ -113,6 +113,7 @@ python3 tests/test_keys.py
 python3 tests/test_radio.py
 python3 tests/test_screens.py
 python3 tests/test_adc_dma.py
+python3 tests/test_regeneration.py
 ```
 
 Wyniki: `build/STM32G051.elf`, `.hex`, `.bin`, `.map`. Makefile obsługuje
@@ -129,12 +130,34 @@ konfigurację kołową, kolejność pięciu rang, start transferu, kolejne obrot
 obu połówek bufora, spójność odczytu, obsługę przerwań i błędów.
 Testy nie zastępują weryfikacji na płytce.
 
-Konfigurację pinów i peryferiów odzwierciedla `STM32G051.ioc`; nie wykonano
-regeneracji w CubeMX w środowisku chmurowym. Inicjalizacja ADC/DAC/DMA jest
-w `Core/Src/analog.c`, wraz z ich przerwaniami. Przy regeneracji z CubeMX
-należy uzgodnić wygenerowane inicjalizacje/przerwania z tym modułem, aby
-nie powstały podwójne definicje ani ponowne inicjalizacje. W CubeIDE należy
-odświeżyć projekt i przebudować pliki make (zapisane Debug pochodzą z Windows).
+## Regeneracja CubeMX
+
+Plik `STM32G051.ioc` oparto na wersji przesłanej po regeneracji w CubeMX
+6.16.1. Zachowaj `Keep User Code when re-generating` (`KeepUserCode=true`)
+oraz generowanie osobnych plików `.c/.h` peryferiów (`CoupleFile=true`).
+
+`MX_DMA_Init`, `MX_ADC1_Init`, `MX_DAC1_Init` i `MX_I2C2_Init` są w modułach
+`dma.c`, `adc.c`, `dac.c`, `i2c.c`. Wspólne uchwyty `hadc1`, `hdma_adc1`,
+`hdac1` mają jedną definicję w tych modułach. Main wywołuje wygenerowane
+inicjalizacje przed `USER CODE BEGIN 2`, w kolejności GPIO, DMA, ADC, DAC, I2C.
+W USER CODE 2 pozostaje tylko uruchomienie aplikacji, DMA i wyjść DAC przez
+`Analog_Init`, inicjalizacja OLED i pierwsze rysowanie. Kalibracja pozostaje
+pominięta; generator standardowo nie uruchamia jej w `MX_ADC1_Init`.
+
+Funkcje wektorów `DMA1_Channel1_IRQHandler` i `ADC1_COMP_IRQHandler` są
+wyłącznie w `stm32g0xx_it.c` i korzystają z tych samych uchwytów co aplikacja.
+`analog.c` zawiera bufor i callbacki ADC, bez duplikatów wektorów ani MSP.
+Obsługa klawiatury jest w `USER CODE BEGIN 2` w gpio.c, jej deklaracje
+w `USER CODE BEGIN Prototypes` w gpio.h. Deklaracje transportu OLED w i2c.h
+również są w sekcji USER CODE. Pozostałe moduły aplikacji są osobnymi plikami.
+
+Po generacji wykonaj Clean i przebuduj projekt w CubeIDE. Test
+`test_regeneration.py` sprawdza parowanie sekcji, pojedyncze definicje IRQ
+i uruchamia test klawiszy po modelowej regeneracji gpio.c/gpio.h zachowującej
+wyłącznie USER CODE. Nie wykonuje samego CubeMX; rzeczywistą regenerację
+należy potwierdzić lokalnie w IDE. Przesłana konfiguracja nie aktywuje TIM2
+ani TIM3; timery nie są uruchamiane przez aplikację. Rezerwacja PA0/PB3
+jako funkcji alternatywnych z rysunku pozostaje w USER CODE MspInit 1.
 
 Do weryfikacji na sprzęcie: option bytes PF2, odczyt wszystkich klawiszy,
 OLED i pull-up I2C, napięcia ADC na pięciu kanałach, oba napięcia DAC oraz SWD.
