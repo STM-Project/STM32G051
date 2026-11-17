@@ -85,18 +85,8 @@ static void OLED_Init(void)
 static void DrawAnalog(void)
 {
   uint16_t adc[ADC_INPUT_COUNT];
-  const uint8_t channels[ADC_INPUT_COUNT] = {1, 2, 3, 6, 7};
-  char line[24];
   uint8_t valid = Analog_Read(adc);
-  for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
-    if (valid) snprintf(line, sizeof(line), "ADC%u: %4u", channels[i], adc[i]);
-    else snprintf(line, sizeof(line), "ADC%u: ----", channels[i]);
-    SSD1306_Txt(0, i * 10, line, Font_7x10, NoInvert);
-  }
-  snprintf(line, sizeof(line), "%c1:%4u %c2:%4u",
-           selected_dac == 0 ? '>' : ' ', dac_value[0],
-           selected_dac == 1 ? '>' : ' ', dac_value[1]);
-  SSD1306_Txt(0, 54, line, Font_7x10, NoInvert);
+  Screen_DrawAnalog(adc, valid, dac_value, selected_dac);
 }
 
 static void UpdateDisplay(void)

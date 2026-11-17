@@ -25,7 +25,8 @@ Wykrywany jest pierwszy ekran pod adresem 7-bitowym 0x3C lub 0x3D
 (0x78/0x7A w HAL). Potrzebne są zewnętrzne pull-up na SDA/SCL do 3,3 V.
 Magistrala pracuje około 100 kHz przy PCLK=16 MHz. Brak OLED przy starcie
 nie zatrzymuje ADC, DAC i klawiatury. Ekran odświeża się co 200 ms i pokazuje
-surowe pomiary ADC oraz nastawy DAC; znak `>` oznacza wybrane wyjście.
+surowe pomiary pięciu ADC w dwóch kolumnach (trzy wiersze) oraz nastawy
+DAC1/DAC2 w osobnych wierszach poniżej; znak `>` oznacza wybrane wyjście.
 
 ## ADC i DAC
 

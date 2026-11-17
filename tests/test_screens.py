@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render actual fonts/screens/SSD1306 code into a simulated OLED framebuffer."""
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -10,10 +11,31 @@ with tempfile.TemporaryDirectory() as tmp:
     for name in ('screens', 'ssd1306', 'fonts'):
         for folder, ext in [('Src', 'c'), ('Inc', 'h')]:
             shutil.copy(root/'Core'/folder/(name+'.'+ext), out/(name+'.'+ext))
+    # Instrument only the temporary driver copy to catch any clipped output.
+    driver = out/'ssd1306.c'
+    instrumented = driver.read_text().replace(
+        'char ssd1306_WriteChar(char ch,', 'static char DrawCharImpl(char ch,').replace(
+        'void ssd1306_DrawPixel(uint8_t x,', 'static void DrawPixelImpl(uint8_t x,')
+    instrumented += """
+#include <assert.h>
+extern unsigned check_bounds;
+char ssd1306_WriteChar(char ch, FontDef font, SSD1306_COLOR color) {
+  char result = DrawCharImpl(ch, font, color);
+  if (check_bounds) assert(result == ch);
+  return result;
+}
+void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
+  if (check_bounds) assert(x < SSD1306_WIDTH && y < SSD1306_HEIGHT);
+  DrawPixelImpl(x, y, color);
+}
+"""
+    driver.write_text(instrumented)
     shutil.copy(root/'Core/Inc/radio.h',out/'radio.h')
+    shutil.copy(root/'Core/Inc/analog.h',out/'analog.h')
     (out/'main.h').write_text('''#ifndef MOCK_MAIN_H
 #define MOCK_MAIN_H
 #include <stdint.h>
+typedef enum { HAL_OK, HAL_ERROR } HAL_StatusTypeDef;
 #define MIDDLE(start,bg,width) ((start)+((bg)-(width))/2)
 void HAL_Delay(uint32_t);
 #endif
@@ -22,7 +44,10 @@ void HAL_Delay(uint32_t);
 uint8_t SSD1306_WriteCommand(uint16_t, uint8_t);
 uint8_t SSD1306_WriteData(uint16_t, uint8_t *, uint16_t);
 ''')
-    (out/'test.c').write_text('''
+    stations = re.findall(r'\{"([^"\n]+)", (\d+)\}', (root/'Core/Src/radio.c').read_text())
+    assert len(stations) == 24
+    presets = ','.join('{"'+name+'",'+freq+'}' for name, freq in stations)
+    harness = '''
 #include "screens.h"
 #include "ssd1306.h"
 #include <assert.h>
@@ -31,10 +56,13 @@ uint8_t SSD1306_WriteData(uint16_t, uint8_t *, uint16_t);
 static uint8_t frame[1024], frames[4][1024], page, error;
 static uint16_t address=0x78;
 static unsigned delays, writes;
+unsigned check_bounds=1;
+static const char *station_name="Radio Krakow";
+static uint16_t station_frequency=10160, station_divider=3179;
 void HAL_Delay(uint32_t ms) { (void)ms; ++delays; }
-const char *Radio_Name(void) { return "Radio Krakow"; }
-uint16_t Radio_Frequency(void) { return 10160; }
-uint16_t Radio_Divider(void) { return 3179; }
+const char *Radio_Name(void) { return station_name; }
+uint16_t Radio_Frequency(void) { return station_frequency; }
+uint16_t Radio_Divider(void) { return station_divider; }
 uint8_t Radio_Errors(void) { return error; }
 uint8_t SSD1306_WriteCommand(uint16_t addr, uint8_t command) {
   assert(addr==address);
@@ -53,7 +81,32 @@ static void draw(unsigned n) {
   ssd1306_UpdateScreen();
   assert(writes==8);
 }
+static unsigned pixels(unsigned x0, unsigned y0, unsigned w, unsigned h) {
+  unsigned count=0;
+  for(unsigned y=y0;y<y0+h;y++) for(unsigned x=x0;x<x0+w;x++)
+    count += (frame[(y/8)*128+x] >> (y%8)) & 1;
+  return count;
+}
 int main(void) {
+  uint16_t adc[5]={111,222,333,666,777}, dac[2]={1234,4095};
+  SSD1306_DispBK(address,NoInvert);
+  Screen_DrawAnalog(adc,1,dac,0); ssd1306_UpdateScreen();
+  for(unsigned i=0;i<5;i++) assert(pixels((i%2)*64,(i/2)*12,63,10)>0);
+  assert(pixels(7,40,63,10)>0 && pixels(7,52,63,10)>0); /* both DAC rows */
+  assert(pixels(0,40,7,10)>0 && pixels(0,52,7,10)==0); /* selected DAC1 */
+  SSD1306_DispBK(address,NoInvert);
+  Screen_DrawAnalog(adc,0,dac,1); ssd1306_UpdateScreen();
+  assert(pixels(0,40,7,10)==0 && pixels(0,52,7,10)>0); /* selected DAC2 */
+  /* A glyph ending exactly at the right/bottom edges is valid. */
+  SSD1306_DispBK(address,NoInvert);
+  ssd1306_SetCursor(121,54);
+  assert(ssd1306_WriteChar('8',Font_7x10,White)=='8');
+  ssd1306_UpdateScreen(); assert(pixels(121,54,7,10)>0);
+  check_bounds=0; /* Deliberately out-of-bounds glyph tests. */
+  ssd1306_SetCursor(122,54); assert(ssd1306_WriteChar('8',Font_7x10,White)==0);
+  ssd1306_SetCursor(121,55); assert(ssd1306_WriteChar('8',Font_7x10,White)==0);
+  check_bounds=1;
+
   for(unsigned i=0;i<4;i++) {
     draw(i); memcpy(frames[i],frame,sizeof(frame));
     draw(i); assert(memcmp(frames[i],frame,sizeof(frame))==0);
@@ -71,8 +124,22 @@ int main(void) {
   assert(memcmp(normal,frame,sizeof(frame))==0);
   SSD1306_DispBK(address,NoInvert); Screen_DrawRadioIntro(); ssd1306_UpdateScreen();
   assert(memcmp(normal,frame,sizeof(frame))!=0 && delays==0);
-  puts("PASS: four distinct frames, repeatability/color state, OLED addresses, FM errors, no delays");
+
+  const struct { const char *name; unsigned frequency; } presets[] = { PRESET_ROWS };
+  for(unsigned i=0;i<sizeof(presets)/sizeof(presets[0]);i++) {
+    station_name=presets[i].name;
+    for(int offset=-100;offset<=100;offset+=100) {
+      station_frequency=presets[i].frequency+offset;
+      station_divider=(offset==0) ? 0xFFFF : 0;
+      for(error=0;error<4;error++) {
+        SSD1306_DispBK(address,NoInvert);
+        Screen_DrawRadio(); ssd1306_UpdateScreen();
+      }
+    }
+  }
+  puts("PASS: five ADC/two DAC rows, selection, edges, demos, 24 FM presets/tuning/errors, no clipping");
 }
-''')
+'''
+    (out/'test.c').write_text(harness.replace('PRESET_ROWS', presets))
     subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',str(out/'screens.c'),str(out/'ssd1306.c'),str(out/'fonts.c'),str(out/'test.c'),'-o',str(out/'test')],check=True)
     subprocess.run([str(out/'test')],check=True)
