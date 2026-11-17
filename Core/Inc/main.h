@@ -37,6 +37,48 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+#define INIT(name,val)				int name=val
+#define EQUAL2_OR(val,eq1,eq2)		(((eq1)==(val))||((eq2)==(val)))
+#define LOOP_FOR(cnt,max) 			for(int (cnt)=0;(cnt)<(max);++(cnt))
+#define INCR(x,step,max)  			(((x)+(step)>(max)) ? ((x)=(max)) : ((x)+=(step)))
+#define DECR(x,step,min)  			(((x)-(step)<(min)) ? ((x)=(min)) : ((x)-=(step)))
+#define INCR_WRAP(x,step,min,max)  	(((x)+(step)>(max)) ? ((x)=(min)) : ((x)+=(step)))
+#define DECR_WRAP(x,step,min,max)  	(((x)-(step)<(min)) ? ((x)=(max)) : ((x)-=(step)))
+#define STRUCT_TAB_SIZE(_struct) 	(sizeof(_struct) / sizeof(&_struct[0]))		/* if every element of table or structure is regular */
+#define IS_RANGE(val,min,max) 		(((val)>=(min))&&((val)<=(max)))
+#define TOOGLE(x) 					((x)=1-(x))
+
+#define MIDDLE(startPos,widthBk,width)		((startPos)+((widthBk)-(width))/2)
+#define CONDITION(condition,val1,val2)		((condition) ? (val1) : (val2))
+
+#define SET_bit(allBits,bitNr)	((allBits) |=   1<<(bitNr))
+#define RST_bit(allBits,bitNr)	((allBits) &= ~(1<<(bitNr)))
+#define CHECK_bit(allBits,bitNr) (((allBits)>>((bitNr)>31?31:(bitNr))) & 0x00000001)
+
+#define PRESSED_NONE	0
+#define PRESSED_ONE		1
+#define PRESSED_TWO		2
+#define PRESSED_THREE	3
+#define PRESSED_FOUR	4
+
+typedef enum{
+	press_0,press_1,press_2,press_3,press_4,press_5,press_6,press_7,press_8,press_9,press_10,press_11,press_12,press_13,press_14,
+	press_15,press_16,press_17,press_18,press_19,press_20,press_21,press_22,press_23,press_24,press_25,press_26,press_27,press_28,
+	press_29,press_30,press_31,press_32,press_33,press_34,press_35,press_36,press_37,press_38,press_39,press_40,press_41,press_42,
+}KEYS_PRES;
+
+typedef struct{
+	GPIO_TypeDef* gpio;
+	uint16_t pin;
+}INPUT_PIN;
+
+typedef struct{
+	uint8_t mode;		/* number of the pressed pins */
+	uint8_t code;		/* code for the number of the pressed pins */
+}INPUT_PRESS;
+
+
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

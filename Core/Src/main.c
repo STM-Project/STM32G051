@@ -21,6 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "gpio.h"
+#include "i2c.h"
+#include "analog.h"
+#include "ssd1306.h"
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -42,6 +47,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static uint16_t dac_value[2];
+static uint8_t selected_dac;
+static uint8_t oled_ready;
+static uint16_t oled_address;
+
 
 /* USER CODE END PV */
 
@@ -53,6 +63,54 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void OLED_Init(void)
+{
+  const uint16_t addresses[] = {0x78, 0x7A};
+  for (uint8_t i = 0; i < 2; ++i) {
+    if (HAL_I2C_IsDeviceReady(&hi2c2, addresses[i], 2, 20) == HAL_OK) {
+      oled_address = addresses[i];
+      ssd1306_SetDevAddr(oled_address);
+      oled_ready = (ssd1306_Init() == 0);
+      if (oled_ready) return;
+    }
+  }
+}
+
+static void UpdateDisplay(void)
+{
+  uint16_t adc[ADC_INPUT_COUNT];
+  const uint8_t channels[ADC_INPUT_COUNT] = {1, 2, 3, 6, 7};
+  char line[24];
+  if (!oled_ready) return;
+  uint8_t valid = Analog_Read(adc);
+  SSD1306_DispBK(oled_address, NoInvert);
+  for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
+    if (valid) snprintf(line, sizeof(line), "ADC%u: %4u", channels[i], adc[i]);
+    else snprintf(line, sizeof(line), "ADC%u: ----", channels[i]);
+    SSD1306_Txt(0, i * 10, line, Font_7x10, NoInvert);
+  }
+  snprintf(line, sizeof(line), "%c1:%4u %c2:%4u",
+           selected_dac == 0 ? '>' : ' ', dac_value[0],
+           selected_dac == 1 ? '>' : ' ', dac_value[1]);
+  SSD1306_Txt(0, 54, line, Font_7x10, NoInvert);
+  ssd1306_UpdateScreen();
+}
+
+static void ServiceKeys(void)
+{
+  switch (INPUT_PollPress()) {
+    case 1: dac_value[selected_dac] = dac_value[selected_dac] > 4031 ?
+                                    4095 : dac_value[selected_dac] + 64; break;
+    case 2: dac_value[selected_dac] = dac_value[selected_dac] < 64 ?
+                                    0 : dac_value[selected_dac] - 64; break;
+    case 4: selected_dac ^= 1; break;
+    case 8: dac_value[selected_dac] = 0; break;
+    default: return; /* Ignore chords; require release before another action. */
+  }
+  if (Analog_SetDAC(selected_dac, dac_value[selected_dac]) != HAL_OK)
+    Error_Handler();
+}
+
 
 /* USER CODE END 0 */
 
@@ -85,6 +143,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   /* USER CODE BEGIN 2 */
+  MX_GPIO_Init();
+  MX_I2C2_Init();
+  Analog_Init();
+  HAL_Delay(200);
+  OLED_Init();
+  uint32_t display_tick = HAL_GetTick();
+  UpdateDisplay();
+
 
   /* USER CODE END 2 */
 
@@ -95,6 +161,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    ServiceKeys();
+    if ((uint32_t)(HAL_GetTick() - display_tick) >= 200U) {
+      display_tick = HAL_GetTick();
+      UpdateDisplay();
+    }
+
   }
   /* USER CODE END 3 */
 }
