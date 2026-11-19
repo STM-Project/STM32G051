@@ -32,6 +32,7 @@ void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
     driver.write_text(instrumented)
     shutil.copy(root/'Core/Inc/radio.h',out/'radio.h')
     shutil.copy(root/'Core/Inc/analog.h',out/'analog.h')
+    shutil.copy(root/'Core/Inc/face_frames.h',out/'face_frames.h')
     (out/'main.h').write_text('''#ifndef MOCK_MAIN_H
 #define MOCK_MAIN_H
 #include <stdint.h>
@@ -145,7 +146,10 @@ int main(void) {
     Screen_DrawFace(i);
     ssd1306_UpdateScreen();
     assert(pixels(28,4,55,57)>0);
+    assert(pixels(30,2,50,10)>50); /* Lit strands in the hair. */
     if (i==0) memcpy(frames[0],frame,sizeof(frame));
+    if (i==4) memcpy(frames[1],frame,sizeof(frame));
+    if (i==5) assert(memcmp(frames[1],frame,sizeof(frame))!=0);
     if (i==4 || i==9 || i==14 || i==20)
       assert(memcmp(frames[0],frame,sizeof(frame))!=0);
     if (i==9) assert(pixels(87,41,11,9)>0);
