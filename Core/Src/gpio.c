@@ -149,7 +149,7 @@ int INPUT_IsAnyPress(INPUT_PIN *in, int size){
 #define KEY_REPEAT_START_MS 1000U
 #define KEY_REPEAT_STEP_MS 5U
 
-/* Nonblocking events: bit 0..2 = pin1..pin3. Only enabled single
+/* Nonblocking events: bit 0..3 = pin1..pin4. Only enabled single
  * keys repeat, and only while the original key stays down on its own. */
 uint8_t INPUT_PollPress(uint8_t repeat_mask)
 {
@@ -158,11 +158,11 @@ uint8_t INPUT_PollPress(uint8_t repeat_mask)
   static uint32_t changed, started, last_event;
   static uint32_t repeat_delay;
   uint8_t raw = 0;
-  const INPUT_PIN pins[] = {
+  const INPUT_PIN pins[4] = {
     {GPIOB, GPIO_PIN_7}, {GPIOC, GPIO_PIN_14},
-    {GPIOC, GPIO_PIN_15}
+    {GPIOC, GPIO_PIN_15}, {GPIOF, GPIO_PIN_2}
   };
-  for (uint8_t i = 0; i < sizeof(pins) / sizeof(pins[0]); ++i)
+  for (uint8_t i = 0; i < 4; ++i)
     if (HAL_GPIO_ReadPin(pins[i].gpio, pins[i].pin) == GPIO_PIN_RESET)
       raw |= (uint8_t)(1U << i);
   uint32_t now = HAL_GetTick();

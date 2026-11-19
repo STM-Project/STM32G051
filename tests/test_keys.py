@@ -88,7 +88,7 @@ int main(void) {
   assert(poll(3300,4)==0); assert(poll(3308,4)==0); assert(poll(3348,4)==4);
   assert(poll(4400,4)==0);
   assert(poll(4401,0)==0); assert(poll(4409,0)==0);
-  assert(poll(4410,8)==0); assert(poll(4418,8)==0); assert(poll(4458,8)==0); /* PF2 pulses are independent of keys */
+  assert(poll(4410,8)==0); assert(poll(4418,8)==0); assert(poll(4458,8)==8);
   assert(poll(5500,8)==0);
   assert(poll(5501,0)==0); assert(poll(5509,0)==0);
   /* A second or third key arriving at the deadline can still join a chord. */

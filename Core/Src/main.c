@@ -128,6 +128,9 @@ static void ServiceKeys(void)
     case 3: screen = SCREEN_ADC; return;   /* pin1+pin2 */
     case 5: screen = SCREEN_FM; Radio_Apply(); return; /* pin1+pin3 */
     case 6: screen = SCREEN_DEMO0; return; /* pin2+pin3 */
+    case 9: screen = SCREEN_DEMO1; return; /* pin1+pin4 */
+    case 10: screen = SCREEN_DEMO2; return; /* pin2+pin4 */
+    case 12: screen = SCREEN_DEMO3; return; /* pin3+pin4 */
     case 7: screen = SCREEN_INTRO; return; /* pin1+pin2+pin3 */
     default: break;
   }
@@ -135,6 +138,7 @@ static void ServiceKeys(void)
   if (screen != SCREEN_ADC) return;
   switch (keys) {
     case 4: selected_dac ^= 1; break;
+    case 8: dac_value[selected_dac] = 0; break;
     default: return;
   }
   if (Analog_SetDAC(selected_dac, dac_value[selected_dac]) != HAL_OK)

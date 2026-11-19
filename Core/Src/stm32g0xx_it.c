@@ -43,11 +43,11 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 #define PULSE_GATE_MS 500U
-static volatile uint32_t pf2_edges;
+static volatile uint32_t pb3_upper_count;
 static volatile uint32_t pulse_hz[2];
 static volatile uint8_t pulse_ready;
 static uint32_t pulse_gate_start;
-static uint32_t previous_pf2_edges;
+static uint32_t previous_pa0_edges;
 static uint32_t previous_pb3_edges;
 static uint8_t pulse_running;
 
@@ -60,46 +60,72 @@ static uint8_t pulse_running;
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void ConfigurePulseTimer(TIM_TypeDef *timer, uint32_t channel_selection,
+                                uint32_t trigger_selection, uint32_t period)
+{
+  timer->CR1 = TIM_CR1_URS; /* Only counter overflow requests an update IRQ. */
+  timer->DIER = 0;
+  timer->SMCR = 0;
+  timer->CCER = 0; /* Rising polarity. */
+  timer->CCMR1 = channel_selection;
+  timer->PSC = 0;
+  timer->ARR = period;
+  timer->EGR = TIM_EGR_UG;
+  timer->SR = 0;
+  timer->SMCR = trigger_selection | TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1 | TIM_SMCR_SMS_0;
+}
+
 void Pulse_Init(void)
 {
-  GPIO_InitTypeDef pin = {0};
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_TIM1_CLK_ENABLE();
   __HAL_RCC_TIM2_CLK_ENABLE();
 
+  GPIO_InitTypeDef pin = {
+    .Pin = GPIO_PIN_0,
+    .Mode = GPIO_MODE_AF_PP,
+    .Pull = GPIO_NOPULL,
+    .Alternate = GPIO_AF2_TIM2
+  };
+  HAL_GPIO_Init(GPIOA, &pin);
   pin.Pin = GPIO_PIN_3;
-  pin.Mode = GPIO_MODE_AF_PP;
-  pin.Pull = GPIO_NOPULL;
-  pin.Alternate = GPIO_AF2_TIM2;
+  pin.Alternate = GPIO_AF1_TIM1;
   HAL_GPIO_Init(GPIOB, &pin);
 
-  TIM2->CR1 = 0;
-  TIM2->SMCR = 0;
-  TIM2->CCER = 0;
-  TIM2->CCMR1 = TIM_CCMR1_CC2S_0; /* IC2 takes the unfiltered TI2 input. */
-  TIM2->PSC = 0;
-  TIM2->ARR = UINT32_MAX;
-  TIM2->EGR = TIM_EGR_UG;
-  TIM2->SR = 0;
-  /* TS=110 selects TI2FP2. SMS=111 is external clock mode 1. */
-  TIM2->SMCR = TIM_SMCR_TS_2 | TIM_SMCR_TS_1 |
-               TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1 | TIM_SMCR_SMS_0;
-
-  pin.Pin = GPIO_PIN_2;
-  pin.Mode = GPIO_MODE_IT_RISING;
-  pin.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOF, &pin);
+  /* External clock mode 1: PA0 uses TIM2 TI1FP1, PB3 uses TIM1 TI2FP2. */
+  TIM1->RCR = 0;
+  ConfigurePulseTimer(TIM2, TIM_CCMR1_CC1S_0,
+                      TIM_SMCR_TS_2 | TIM_SMCR_TS_0, UINT32_MAX);
+  ConfigurePulseTimer(TIM1, TIM_CCMR1_CC2S_0,
+                      TIM_SMCR_TS_2 | TIM_SMCR_TS_1, UINT16_MAX);
 
   uint32_t primask = __get_PRIMASK();
   __disable_irq();
-  __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_2);
-  HAL_NVIC_ClearPendingIRQ(EXTI2_3_IRQn);
-  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+  HAL_NVIC_ClearPendingIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
+  HAL_NVIC_SetPriority(TIM1_BRK_UP_TRG_COM_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
+  TIM1->DIER = TIM_DIER_UIE;
   pulse_gate_start = HAL_GetTick();
-  TIM2->CR1 = TIM_CR1_CEN;
+  TIM2->CR1 |= TIM_CR1_CEN;
+  TIM1->CR1 |= TIM_CR1_CEN;
   pulse_running = 1;
   __set_PRIMASK(primask);
+}
+
+static uint32_t ReadPB3Counter(void)
+{
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
+  uint32_t high = pb3_upper_count;
+  uint32_t low = TIM1->CNT;
+  /* Account for a rollover whose update interrupt is still pending. */
+  if ((TIM1->SR & TIM_SR_UIF) != 0U) {
+    high += UINT16_MAX + 1U;
+    low = TIM1->CNT;
+  }
+  __set_PRIMASK(primask);
+  return high + low;
 }
 
 uint8_t Pulse_ReadHz(uint32_t hz[2])
@@ -121,11 +147,11 @@ static void Pulse_Sample(void)
     return;
 
   pulse_gate_start += PULSE_GATE_MS;
-  uint32_t pf2 = pf2_edges;
-  uint32_t pb3 = TIM2->CNT;
-  pulse_hz[0] = (pf2 - previous_pf2_edges) * 2U;
+  uint32_t pa0 = TIM2->CNT;
+  uint32_t pb3 = ReadPB3Counter();
+  pulse_hz[0] = (pa0 - previous_pa0_edges) * 2U;
   pulse_hz[1] = (pb3 - previous_pb3_edges) * 2U;
-  previous_pf2_edges = pf2;
+  previous_pa0_edges = pa0;
   previous_pb3_edges = pb3;
   pulse_ready = 1;
 }
@@ -237,12 +263,12 @@ void ADC1_COMP_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-/* The CubeMX EXTI vector is left disabled so this handler survives regeneration. */
-void EXTI2_3_IRQHandler(void)
+/* The TIM1 update vector is owned here so CubeMX can preserve this handler. */
+void TIM1_BRK_UP_TRG_COM_IRQHandler(void)
 {
-  if (__HAL_GPIO_EXTI_GET_RISING_IT(GPIO_PIN_2) != 0U) {
-    __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_2);
-    ++pf2_edges;
+  if ((TIM1->SR & TIM_SR_UIF) != 0U) {
+    TIM1->SR = ~(uint32_t)TIM_SR_UIF;
+    pb3_upper_count += UINT16_MAX + 1U;
   }
 }
 

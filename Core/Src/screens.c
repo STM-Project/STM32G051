@@ -89,7 +89,7 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
     SSD1306_Txt((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10, NoInvert);
   }
 
-  snprintf(line, sizeof(line), "PF2:%lu Hz", (unsigned long)hz[0]);
+  snprintf(line, sizeof(line), "PA0:%lu Hz", (unsigned long)hz[0]);
   SSD1306_Txt(0, 24, line, Font_7x10, NoInvert);
   snprintf(line, sizeof(line), "PB3:%lu Hz", (unsigned long)hz[1]);
   SSD1306_Txt(0, 34, line, Font_7x10, NoInvert);
