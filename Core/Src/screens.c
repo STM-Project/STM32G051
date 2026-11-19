@@ -172,27 +172,30 @@ void Screen_DrawFace(uint8_t frame)
 void Screen_DrawPCF(const uint16_t values[2], uint8_t selected_byte,
                     uint8_t errors)
 {
-  char line[19];
+  const uint8_t byte_spacing = 27U;
+  char hex[3];
+  SSD1306_TxtMiddBK(0, 2, SSD1306_WIDTH, 10, "Syntezer PLL", Font_7x10, NoInvert);
+  if (errors) {
+    const char *message = errors == 3U ? "ERR 20/21" :
+                          errors == 1U ? "ERR 20" : "ERR 21";
+    SSD1306_Txt(0, 14, message, Font_7x10, NoInvert);
+  }
   for (uint8_t chip = 0; chip < 2; ++chip) {
-    uint8_t x = chip == 0 ? 0 : 73;
-    uint8_t y = chip == 0 ? 45 : 55;
-    snprintf(line, sizeof(line), "PCF %02X", (unsigned)(0x20U + chip));
-    SSD1306_Txt(x, 0, line, Font_7x10, NoInvert);
-    snprintf(line, sizeof(line), "%02X %02X", (unsigned)(values[chip] >> 8),
-             (unsigned)(values[chip] & 0xFFU));
+    uint8_t x = chip == 0 ? 0 : 79;
+    uint8_t y = chip == 0 ? 51 : 59;
+    snprintf(hex, sizeof(hex), "%02X", (unsigned)(values[chip] >> 8));
+    SSD1306_Txt(x, 24, hex, Font_11x18, NoInvert);
+    snprintf(hex, sizeof(hex), "%02X", (unsigned)(values[chip] & 0xFFU));
+    SSD1306_Txt(x + byte_spacing, 24, hex, Font_11x18, NoInvert);
+    if (chip == selected_byte / 2U)
+      SSD1306_rect(x + byte_spacing * (selected_byte % 2U), 42, 22, 1);
+
     for (uint8_t col = 0; col < 16; ++col) {
       if ((values[chip] & (1U << (15U - col))) != 0U)
-        SSD1306_roundRect(8U * col, y, 7, 7);
+        SSD1306_roundRect(8U * col + 1U, y, 5, 5);
       else
-        SSD1306_roundFrame(8U * col, y, 7, 7);
+        SSD1306_roundFrame(8U * col + 1U, y, 5, 5);
     }
-    SSD1306_Txt(x, 12, line, Font_11x18, NoInvert);
-    if (chip == selected_byte / 2U)
-      SSD1306_rect(x + 33U * (selected_byte % 2U), 30, 22, 1);
   }
-  snprintf(line, sizeof(line), "BAJT %u%s%s", (unsigned)(selected_byte + 1U),
-           errors ? " ERR" : "", errors == 3U ? " 20/21" :
-           errors == 1U ? " 20" : errors == 2U ? " 21" : "");
-  SSD1306_Txt(0, 33, line, Font_7x10, NoInvert);
 }
 /* USER CODE END PCF */

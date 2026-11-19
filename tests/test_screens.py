@@ -155,17 +155,20 @@ int main(void) {
   SSD1306_DispBK(address,NoInvert);
   Screen_DrawPCF(ports,3,0);
   ssd1306_UpdateScreen();
-  assert(pixels(0,12,55,18)>0 && pixels(73,12,55,18)>0);
-  assert(pixels(55,12,18,18)==0);
-  assert(pixels(3,48,1,1)==1 && pixels(123,48,1,1)==0);
-  assert(pixels(3,58,1,1)==0 && pixels(123,58,1,1)==1);
-  assert(pixels(106,30,22,1)==22);
-  assert(pixels(0,53,128,1)==0 && pixels(0,63,128,1)==0);
+  assert(pixels(0,24,22,18)>0 && pixels(27,24,22,18)>0);
+  assert(pixels(79,24,22,18)>0 && pixels(106,24,22,18)>0);
+  assert(pixels(22,24,5,18)==0 && pixels(101,24,5,18)==0);
+  assert(pixels(49,24,30,18)==0);
+  assert(pixels(0,2,128,10)>0 && pixels(0,14,128,10)==0);
+  assert(pixels(3,53,1,1)==1 && pixels(123,53,1,1)==0);
+  assert(pixels(3,61,1,1)==0 && pixels(123,61,1,1)==1);
+  assert(pixels(106,42,22,1)==22);
+  assert(pixels(0,56,128,3)==0 && pixels(0,63,128,1)>0);
   SSD1306_DispBK(address,NoInvert);
   Screen_DrawPCF(ports,0,1);
   ssd1306_UpdateScreen();
-  assert(pixels(0,30,22,1)==22);
-  assert(pixels(0,33,128,10)>0);
+  assert(pixels(0,42,22,1)==22);
+  assert(pixels(0,14,128,10)>0);
   /* Verify that all timed face frames fit and the key poses visibly differ. */
   for (unsigned i=0; i<=40; ++i) {
     SSD1306_DispBK(address,NoInvert);
