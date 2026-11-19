@@ -83,6 +83,8 @@ uruchamiane — nie określono parametrów przebiegów ani trybu ich pracy.
 | pin2 + pin4 | Przykład 3: Rafa |
 | pin3 + pin4 | Przykład 4: zestaw znaków na odwróconym tle |
 | pin1 + pin2 + pin3 | Ekran tytułowy Radio FM / Synteza częstotliwości |
+| pin1 + pin2 + pin4 | Animacja twarzy (10 s) |
+| pin1 + pin3 + pin4 | Ręczne sterowanie wyjściami PCF8575 |
 
 Naciśnij klawisze kombinacji razem i zwolnij wszystkie przed następną akcją.
 Cztery klatki z `EXAMPLE_DrawTxt` w G031 są teraz osobnymi ekranami na jednym OLED. Nie ma pauzy 2300 ms ani przełączania
@@ -109,6 +111,21 @@ ani interfejsu. Ponowne wejście na FM lub naciśnięcie klawisza FM ponawia
 zapis. Dwa zapisy I2C nie są atomowe: przy błędzie jeden ekspander może mieć
 już nową nastawę, a drugi poprzednią. Widoczna częstotliwość jest wartością
 zadaną, nie pomiarem ani potwierdzeniem działania fizycznego odbiornika.
+
+Na ekranie ręcznego sterowania pary bajtów są pokazane w HEX, starszy
+bajt po lewej. Górny rząd kółek odpowiada adresowi `0x20`, dolny `0x21`.
+W każdym rzędzie bity biegną od 15 do 0. Pełne kółko oznacza 1, puste 0.
+Kółka służą do podglądu, a podkreślenie wskazuje wybrany bajt HEX.
+Pin1 zwiększa bajt o 1, pin2 zmniejsza go o 1, pin3 wybiera następny bajt,
+a pin4 zeruje wybrany bajt. Wartość zatrzymuje się na `00` lub `FF`.
+Przytrzymanie pin1 lub pin2 przez sekundę uruchamia szybkie powtarzanie
+tak jak przy ustawianiu DAC.
+
+Edytor przechowuje własne nastawy w RAM. Po restarcie zaczynają się od
+`FF FF` dla obu układów. Wejście do edytora wpisuje nastawy ręczne, a wejście
+na ekran FM wpisuje zapamiętane dzielniki wybranej stacji. Oba ekrany korzystają
+z tych samych fizycznych wyjść, lecz przechowują osobne nastawy. Błąd transmisji
+jest oznaczany jako `ERR` z adresem układu.
 
 ## Budowanie i testy
 

@@ -151,22 +151,51 @@ int main(void) {
     if (failed==ANALOG_CAL_DAC_CH1) memcpy(frames[0],frame,sizeof(frame));
     if (failed==ANALOG_CAL_DAC_CH2) assert(memcmp(frames[0],frame,sizeof(frame))!=0);
   }
+  const uint16_t ports[2] = {0x8000,0x0001};
+  SSD1306_DispBK(address,NoInvert);
+  Screen_DrawPCF(ports,3,0);
+  ssd1306_UpdateScreen();
+  assert(pixels(0,12,55,18)>0 && pixels(73,12,55,18)>0);
+  assert(pixels(55,12,18,18)==0);
+  assert(pixels(3,48,1,1)==1 && pixels(123,48,1,1)==0);
+  assert(pixels(3,58,1,1)==0 && pixels(123,58,1,1)==1);
+  assert(pixels(106,30,22,1)==22);
+  assert(pixels(0,53,128,1)==0 && pixels(0,63,128,1)==0);
+  SSD1306_DispBK(address,NoInvert);
+  Screen_DrawPCF(ports,0,1);
+  ssd1306_UpdateScreen();
+  assert(pixels(0,30,22,1)==22);
+  assert(pixels(0,33,128,10)>0);
   /* Verify that all timed face frames fit and the key poses visibly differ. */
-  for (unsigned i=0; i<=20; ++i) {
+  for (unsigned i=0; i<=40; ++i) {
     SSD1306_DispBK(address,NoInvert);
     Screen_DrawFace(i);
     ssd1306_UpdateScreen();
     assert(pixels(28,4,55,57)>0);
     assert(pixels(30,2,50,10)>50); /* Lit strands in the hair. */
     if (i==0) memcpy(frames[0],frame,sizeof(frame));
-    if (i==4) memcpy(frames[1],frame,sizeof(frame));
-    if (i==5) assert(memcmp(frames[1],frame,sizeof(frame))!=0);
-    if (i==4 || i==9 || i==14 || i==20)
-      assert(memcmp(frames[0],frame,sizeof(frame))!=0);
-    if (i==9) assert(pixels(87,41,11,9)>0);
-    if (i==20) assert(pixels(107,17,11,9)>0);
+    if (i==3 || i==6 || i==9 || i==12) {
+      const uint8_t *previous = i==3 ? frames[0] : frames[1];
+      assert(memcmp(previous,frame,sizeof(frame))!=0);
+      memcpy(frames[1],frame,sizeof(frame));
+    }
+    if (i==14 || i==20) {
+      const uint8_t *smile = frames[1]+3*128;
+      const uint8_t *eyes = frame+3*128;
+      assert((memcmp(smile+37,eyes+37,18)!=0)==(i==14));
+      assert((memcmp(smile+56,eyes+56,18)!=0)==(i==20));
+    }
+    if (i==27) {
+      assert(pixels(87,42,11,9)>0);
+      for (unsigned y=0; y<64; ++y) for (unsigned x=0; x<86; ++x) {
+        if (x>=44 && x<67 && y>=40 && y<54) continue;
+        unsigned byte=(y/8)*128+x;
+        assert(((frame[byte]^frames[0][byte]) & (1U<<(y%8)))==0);
+      }
+    }
+    if (i==40) assert(pixels(111,18,11,9)>0);
   }
-  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, face animation, 24 FM presets/tuning/errors, no clipping");
+  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, PCF editor, face animation, 24 FM presets/tuning/errors, no clipping");
 }
 '''
     (out/'test.c').write_text(harness.replace('PRESET_ROWS', presets))

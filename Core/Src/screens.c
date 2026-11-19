@@ -142,19 +142,57 @@ static void FaceHeart(uint8_t x, uint8_t y)
 
 void Screen_DrawFace(uint8_t frame)
 {
-  if (frame < 4U) {
-    FaceDrawPortrait(face_smile);
+  if (frame < 3U) {
+    FaceDrawPortrait(face_neutral);
+  } else if (frame < 6U) {
+    FaceDrawPortrait(face_smile_small);
   } else if (frame < 9U) {
-    const uint8_t (*pose)[FACE_ROW_BYTES] = frame % 2U ? face_talk_narrow : face_talk_open;
-    FaceDrawPortrait(pose);
-  } else if (frame < 14U) {
+    FaceDrawPortrait(face_smile_medium);
+  } else if (frame < 12U) {
+    FaceDrawPortrait(face_smile_wide);
+  } else if (frame >= 14U && frame < 16U) {
+    FaceDrawPortrait(face_wink_left);
+  } else if (frame >= 20U && frame < 22U) {
+    FaceDrawPortrait(face_wink_right);
+  } else if ((frame >= 24U && frame < 27U) || (frame >= 34U && frame < 36U)) {
+    FaceDrawPortrait(face_kiss_prepare);
+  } else if (frame >= 27U && frame < 34U) {
     FaceDrawPortrait(face_kiss);
-    FaceHeart(87U + (frame - 9U) * 5U, 41U - (frame - 9U) * 6U);
-  } else if (frame < 17U) {
-    FaceDrawPortrait(face_wink);
+    uint8_t step = frame - 27U;
+    FaceHeart(87U + step * 4U, 42U - step * 4U);
   } else {
     FaceDrawPortrait(face_smile);
-    FaceHeart(107, frame < 20U ? 23U - (frame - 17U) * 2U : 17U);
+    if (frame >= 36U)
+      FaceHeart(111, frame < 40U ? 22U - (frame - 36U) : 18U);
   }
 }
 /* USER CODE END FACE */
+
+/* USER CODE BEGIN PCF */
+void Screen_DrawPCF(const uint16_t values[2], uint8_t selected_byte,
+                    uint8_t errors)
+{
+  char line[19];
+  for (uint8_t chip = 0; chip < 2; ++chip) {
+    uint8_t x = chip == 0 ? 0 : 73;
+    uint8_t y = chip == 0 ? 45 : 55;
+    snprintf(line, sizeof(line), "PCF %02X", (unsigned)(0x20U + chip));
+    SSD1306_Txt(x, 0, line, Font_7x10, NoInvert);
+    snprintf(line, sizeof(line), "%02X %02X", (unsigned)(values[chip] >> 8),
+             (unsigned)(values[chip] & 0xFFU));
+    for (uint8_t col = 0; col < 16; ++col) {
+      if ((values[chip] & (1U << (15U - col))) != 0U)
+        SSD1306_roundRect(8U * col, y, 7, 7);
+      else
+        SSD1306_roundFrame(8U * col, y, 7, 7);
+    }
+    SSD1306_Txt(x, 12, line, Font_11x18, NoInvert);
+    if (chip == selected_byte / 2U)
+      SSD1306_rect(x + 33U * (selected_byte % 2U), 30, 22, 1);
+  }
+  snprintf(line, sizeof(line), "BAJT %u%s%s", (unsigned)(selected_byte + 1U),
+           errors ? " ERR" : "", errors == 3U ? " 20/21" :
+           errors == 1U ? " 20" : errors == 2U ? " 21" : "");
+  SSD1306_Txt(0, 33, line, Font_7x10, NoInvert);
+}
+/* USER CODE END PCF */

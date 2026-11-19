@@ -33,6 +33,7 @@
 #include "ssd1306.h"
 #include "screens.h"
 #include "radio.h"
+#include "pcf8575.h"
 #include <stdio.h>
 
 /* USER CODE END Includes */
@@ -46,7 +47,7 @@
 /* USER CODE BEGIN PD */
 #define DAC_DISPLAY_REFRESH_MS 125U
 #define FACE_FRAME_MS 250U
-#define FACE_DURATION_MS 5000U
+#define FACE_DURATION_MS 10000U
 #define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
 
 /* USER CODE END PD */
@@ -64,7 +65,7 @@ static uint8_t selected_dac;
 static uint8_t oled_ready;
 static uint16_t oled_address;
 typedef enum { SCREEN_ADC, SCREEN_FM, SCREEN_DEMO0, SCREEN_DEMO1,
-               SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO, SCREEN_FACE } Screen;
+               SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO, SCREEN_FACE, SCREEN_PCF } Screen;
 static Screen screen;
 static uint8_t display_dirty;
 static uint8_t dac_display_dirty;
@@ -73,6 +74,9 @@ static uint8_t adc_valid;
 static uint32_t pulse_hz[2];
 static uint32_t face_started;
 static uint8_t face_frame;
+static uint16_t pcf_values[2] = {0xFFFFU, 0xFFFFU};
+static uint8_t pcf_byte;
+static uint8_t pcf_errors;
 
 
 /* USER CODE END PV */
@@ -98,6 +102,37 @@ static void OLED_Init(void)
   }
 }
 
+static void ServicePCFKey(uint8_t keys)
+{
+  if (keys == 4U) {
+    pcf_byte = (pcf_byte + 1U) % 4U;
+    return;
+  }
+
+  uint8_t chip = pcf_byte / 2U;
+  uint8_t shift = pcf_byte % 2U == 0U ? 8U : 0U;
+  uint8_t value = (uint8_t)(pcf_values[chip] >> shift);
+  switch (keys) {
+    case 1: if (value < UINT8_MAX) ++value; break;
+    case 2: if (value > 0U) --value; break;
+    case 8: value = 0; break;
+    default: return;
+  }
+
+  uint8_t error_mask = 1U << chip;
+  uint16_t byte_mask = (uint16_t)(0xFFU << shift);
+  uint16_t next = (pcf_values[chip] & ~byte_mask) | ((uint16_t)value << shift);
+  if (next == pcf_values[chip] && (pcf_errors & error_mask) == 0U)
+    return;
+
+  if (PCF8575_Write(chip, next) == HAL_OK) {
+    pcf_values[chip] = next;
+    pcf_errors &= ~error_mask;
+  } else {
+    pcf_errors |= error_mask;
+  }
+}
+
 static void DrawDisplay(void)
 {
   SSD1306_DispBK(oled_address, NoInvert);
@@ -106,13 +141,14 @@ static void DrawDisplay(void)
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
     case SCREEN_FACE: Screen_DrawFace(face_frame); break;
+    case SCREEN_PCF: Screen_DrawPCF(pcf_values, pcf_byte, pcf_errors); break;
     default: Screen_DrawExample((uint8_t)(screen - SCREEN_DEMO0)); break;
   }
 }
 
 static void ServiceKeys(void)
 {
-  uint8_t keys = INPUT_PollPress(screen == SCREEN_ADC ? 3U : 0U);
+  uint8_t keys = INPUT_PollPress((screen == SCREEN_ADC || screen == SCREEN_PCF) ? 3U : 0U);
   if (keys == 0) return;
   if (screen == SCREEN_ADC && (keys == 1U || keys == 2U)) {
     uint16_t *value = &dac_value[selected_dac];
@@ -142,8 +178,13 @@ static void ServiceKeys(void)
       face_started = HAL_GetTick();
       face_frame = 0;
       return;
+    case 13: /* pin1+pin3+pin4 */
+      screen = SCREEN_PCF;
+      pcf_errors = PCF8575_SetValues(pcf_values[0], pcf_values[1]);
+      return;
     default: break;
   }
+  if (screen == SCREEN_PCF) { ServicePCFKey(keys); return; }
   if (screen == SCREEN_FM) { Radio_Key(keys); return; }
   if (screen != SCREEN_ADC) return;
   switch (keys) {

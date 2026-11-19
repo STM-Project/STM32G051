@@ -10,6 +10,10 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
 /* USER CODE BEGIN FACE */
 void Screen_DrawFace(uint8_t frame);
 /* USER CODE END FACE */
+/* USER CODE BEGIN PCF */
+void Screen_DrawPCF(const uint16_t values[2], uint8_t selected_byte,
+                    uint8_t errors);
+/* USER CODE END PCF */
 void Screen_DrawExample(uint8_t example);
 void Screen_DrawRadio(void);
 void Screen_DrawRadioIntro(void);

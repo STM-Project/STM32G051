@@ -106,6 +106,8 @@ int main(void) {
   assert(poll(7901,0)==0); assert(poll(7909,0)==0);
   assert(poll(7910,3)==0); assert(poll(7918,3)==0); assert(poll(7958,3)==3);
   assert(poll(7959,0)==0); assert(poll(7967,0)==0);
+  assert(poll(8000,13)==0); assert(poll(8008,13)==0); assert(poll(8048,13)==13);
+  assert(poll(8050,0)==0); assert(poll(8058,0)==0);
   /* Debounce and repeat timing remain valid across tick rollover. */
   assert(poll(UINT32_MAX-55,1)==0); assert(poll(UINT32_MAX-47,1)==0);
   assert(poll(UINT32_MAX-7,1)==1);
