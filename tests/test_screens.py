@@ -139,7 +139,19 @@ int main(void) {
       }
     }
   }
-  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, 24 FM presets/tuning/errors, no clipping");
+  /* Verify that all timed face frames fit and the key poses visibly differ. */
+  for (unsigned i=0; i<=20; ++i) {
+    SSD1306_DispBK(address,NoInvert);
+    Screen_DrawFace(i);
+    ssd1306_UpdateScreen();
+    assert(pixels(28,4,55,57)>0);
+    if (i==0) memcpy(frames[0],frame,sizeof(frame));
+    if (i==4 || i==9 || i==14 || i==20)
+      assert(memcmp(frames[0],frame,sizeof(frame))!=0);
+    if (i==9) assert(pixels(87,41,11,9)>0);
+    if (i==20) assert(pixels(107,17,11,9)>0);
+  }
+  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, face animation, 24 FM presets/tuning/errors, no clipping");
 }
 '''
     (out/'test.c').write_text(harness.replace('PRESET_ROWS', presets))

@@ -101,3 +101,74 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
   }
 }
 /* USER CODE END MEASUREMENTS */
+
+/* USER CODE BEGIN FACE */
+static void FaceEllipse(int cx, int cy, int rx, int ry, uint8_t filled)
+{
+  int32_t rx2 = (int32_t)rx * rx;
+  int32_t ry2 = (int32_t)ry * ry;
+  int x = rx;
+  for (int y = 0; y <= ry; ++y) {
+    int end = x;
+    while ((int32_t)x * x * ry2 + (int32_t)y * y * rx2 > rx2 * ry2)
+      --x;
+    /* Join the outline to the previous row where the ellipse tapers. */
+    int start = filled ? 0 : x;
+    if (filled) end = x;
+    for (int dx = start; dx <= end; ++dx) {
+      ssd1306_Pixel(cx - dx, cy - y);
+      ssd1306_Pixel(cx + dx, cy - y);
+      ssd1306_Pixel(cx - dx, cy + y);
+      ssd1306_Pixel(cx + dx, cy + y);
+    }
+  }
+}
+
+static void FaceHeart(uint8_t x, uint8_t y)
+{
+  static const uint16_t rows[] = {
+    0x186, 0x3CF, 0x7FF, 0x7FF, 0x3FE, 0x1FC, 0x0F8, 0x070, 0x020
+  };
+  for (uint8_t row = 0; row < sizeof(rows) / sizeof(rows[0]); ++row)
+    for (uint8_t col = 0; col < 11U; ++col)
+      if ((rows[row] >> col) & 1U)
+        ssd1306_Pixel(x + col, y + row);
+}
+
+void Screen_DrawFace(uint8_t frame)
+{
+  FaceEllipse(55, 32, 27, 28, 0); /* Face outline. */
+  FaceEllipse(27, 32, 3, 6, 0);
+  FaceEllipse(83, 32, 3, 6, 0);
+  for (int dx = -18; dx <= 17; ++dx) {
+    int y = 11 + (dx + 4) * (dx + 4) / 76;
+    SSD1306_rect(55 + dx, y, 1, 3);
+  }
+  SSD1306_rect(38, 22, 11, 2);
+  SSD1306_rect(62, 22, 11, 2);
+  FaceEllipse(43, 29, 4, 5, 1);
+  if (frame >= 14U && frame < 17U) {
+    SSD1306_rect(62, 31, 11, 2);
+    ssd1306_Pixel(62, 30);
+    ssd1306_Pixel(72, 30);
+  } else {
+    FaceEllipse(67, 29, 4, 5, 1);
+  }
+  SSD1306_rect(54, 31, 2, 7);
+  SSD1306_rect(54, 37, 5, 2);
+
+  if (frame >= 9U && frame < 14U) {
+    FaceEllipse(55, 46, 4, 6, 0); /* Puckered lips and a floating heart. */
+    FaceHeart(87U + (frame - 9U) * 5U, 41U - (frame - 9U) * 6U);
+  } else if (frame >= 4U && frame < 9U) {
+    FaceEllipse(55, 46, 8, 2U + (frame % 3U) * 2U, 0);
+  } else {
+    for (int dx = -12; dx <= 12; ++dx) {
+      int y = 49 - dx * dx / 22;
+      SSD1306_rect(55 + dx, y, 1, 2);
+    }
+    if (frame >= 17U)
+      FaceHeart(107, frame < 20U ? 23U - (frame - 17U) * 2U : 17U);
+  }
+}
+/* USER CODE END FACE */

@@ -100,6 +100,12 @@ int main(void) {
   assert(poll(6700,5)==0); assert(poll(6708,5)==0);
   assert(poll(6748,7)==0); assert(poll(6756,7)==7);
   assert(poll(6757,0)==0); assert(poll(6765,0)==0);
+  /* The animation uses the previously free pin1+pin2+pin4 chord. */
+  assert(poll(6800,11)==0); assert(poll(6808,11)==0); assert(poll(6848,11)==11);
+  assert(poll(7900,11)==0);
+  assert(poll(7901,0)==0); assert(poll(7909,0)==0);
+  assert(poll(7910,3)==0); assert(poll(7918,3)==0); assert(poll(7958,3)==3);
+  assert(poll(7959,0)==0); assert(poll(7967,0)==0);
   /* Debounce and repeat timing remain valid across tick rollover. */
   assert(poll(UINT32_MAX-55,1)==0); assert(poll(UINT32_MAX-47,1)==0);
   assert(poll(UINT32_MAX-7,1)==1);

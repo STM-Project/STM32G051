@@ -45,6 +45,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DAC_DISPLAY_REFRESH_MS 125U
+#define FACE_FRAME_MS 250U
+#define FACE_DURATION_MS 5000U
 #define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
 
 /* USER CODE END PD */
@@ -62,13 +64,15 @@ static uint8_t selected_dac;
 static uint8_t oled_ready;
 static uint16_t oled_address;
 typedef enum { SCREEN_ADC, SCREEN_FM, SCREEN_DEMO0, SCREEN_DEMO1,
-               SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO } Screen;
+               SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO, SCREEN_FACE } Screen;
 static Screen screen;
 static uint8_t display_dirty;
 static uint8_t dac_display_dirty;
 static uint16_t adc_values[ADC_INPUT_COUNT];
 static uint8_t adc_valid;
 static uint32_t pulse_hz[2];
+static uint32_t face_started;
+static uint8_t face_frame;
 
 
 /* USER CODE END PV */
@@ -101,6 +105,7 @@ static void DrawDisplay(void)
     case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac, pulse_hz); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
+    case SCREEN_FACE: Screen_DrawFace(face_frame); break;
     default: Screen_DrawExample((uint8_t)(screen - SCREEN_DEMO0)); break;
   }
 }
@@ -132,6 +137,11 @@ static void ServiceKeys(void)
     case 10: screen = SCREEN_DEMO2; return; /* pin2+pin4 */
     case 12: screen = SCREEN_DEMO3; return; /* pin3+pin4 */
     case 7: screen = SCREEN_INTRO; return; /* pin1+pin2+pin3 */
+    case 11: /* pin1+pin2+pin4 */
+      screen = SCREEN_FACE;
+      face_started = HAL_GetTick();
+      face_frame = 0;
+      return;
     default: break;
   }
   if (screen == SCREEN_FM) { Radio_Key(keys); return; }
@@ -207,6 +217,14 @@ int main(void)
       adc_valid = Analog_Read(adc_values);
       if (screen == SCREEN_ADC)
         display_dirty = 1;
+    }
+    if (screen == SCREEN_FACE) {
+      uint32_t elapsed = now - face_started;
+      uint8_t frame = (elapsed < FACE_DURATION_MS ? elapsed : FACE_DURATION_MS) / FACE_FRAME_MS;
+      if (frame > face_frame) {
+        face_frame = frame;
+        display_dirty = 1;
+      }
     }
     if (oled_ready) {
       if (display_page == OLED_PAGE_COUNT &&
