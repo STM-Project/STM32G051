@@ -108,20 +108,18 @@ void ssd1306_Clr(void){
     else 				 ssd1306_Fill(Black);
 }
 
-//
-//  Write the screenbuffer with changed to the screen
-//
+void ssd1306_UpdatePage(uint8_t page)
+{
+    ssd1306_WriteCommand(0xB0 + page);
+    ssd1306_WriteCommand(0x00);
+    ssd1306_WriteCommand(0x10);
+    SSD1306_WriteData(ssd1306Addr, &SSD1306_Buffer[SSD1306_WIDTH * page], SSD1306_WIDTH);
+}
+
 void ssd1306_UpdateScreen(void)
 {
-    uint8_t i;
-
-    for (i = 0; i < 8; i++) {
-        ssd1306_WriteCommand(0xB0 + i);
-        ssd1306_WriteCommand(0x00);
-        ssd1306_WriteCommand(0x10);
-
-        SSD1306_WriteData(ssd1306Addr, &SSD1306_Buffer[SSD1306_WIDTH * i], SSD1306_WIDTH);
-    }
+    for (uint8_t page = 0; page < SSD1306_HEIGHT / 8; ++page)
+        ssd1306_UpdatePage(page);
 }
 
 //

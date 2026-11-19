@@ -43,6 +43,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_REFRESH_MS 500U
+#define DAC_DISPLAY_REFRESH_MS 125U
+#define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
 
 /* USER CODE END PD */
 
@@ -62,6 +65,9 @@ typedef enum { SCREEN_ADC, SCREEN_FM, SCREEN_DEMO0, SCREEN_DEMO1,
                SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO } Screen;
 static Screen screen;
 static uint8_t display_dirty;
+static uint8_t dac_display_dirty;
+static uint16_t adc_values[ADC_INPUT_COUNT];
+static uint8_t adc_valid;
 
 
 /* USER CODE END PV */
@@ -87,30 +93,35 @@ static void OLED_Init(void)
   }
 }
 
-static void DrawAnalog(void)
+static void DrawDisplay(void)
 {
-  uint16_t adc[ADC_INPUT_COUNT];
-  uint8_t valid = Analog_Read(adc);
-  Screen_DrawAnalog(adc, valid, dac_value, selected_dac);
-}
-
-static void UpdateDisplay(void)
-{
-  if (!oled_ready) return;
   SSD1306_DispBK(oled_address, NoInvert);
   switch (screen) {
-    case SCREEN_ADC: DrawAnalog(); break;
+    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
     default: Screen_DrawExample((uint8_t)(screen - SCREEN_DEMO0)); break;
   }
-  ssd1306_UpdateScreen();
 }
 
 static void ServiceKeys(void)
 {
-  uint8_t keys = INPUT_PollPress();
+  uint8_t keys = INPUT_PollPress(screen == SCREEN_ADC ? 3U : 0U);
   if (keys == 0) return;
+  if (screen == SCREEN_ADC && (keys == 1U || keys == 2U)) {
+    uint16_t *value = &dac_value[selected_dac];
+    if (keys == 1U && *value < 4095U) {
+      ++*value;
+    } else if (keys == 2U && *value > 0U) {
+      --*value;
+    } else {
+      return;
+    }
+    if (Analog_SetDAC(selected_dac, *value) != HAL_OK)
+      Error_Handler();
+    dac_display_dirty = 1;
+    return;
+  }
   display_dirty = 1;
   switch (keys) {
     case 3: screen = SCREEN_ADC; return;   /* pin1+pin2 */
@@ -125,10 +136,6 @@ static void ServiceKeys(void)
   if (screen == SCREEN_FM) { Radio_Key(keys); return; }
   if (screen != SCREEN_ADC) return;
   switch (keys) {
-    case 1: dac_value[selected_dac] = dac_value[selected_dac] > 4031 ?
-                                    4095 : dac_value[selected_dac] + 64; break;
-    case 2: dac_value[selected_dac] = dac_value[selected_dac] < 64 ?
-                                    0 : dac_value[selected_dac] - 64; break;
     case 4: selected_dac ^= 1; break;
     case 8: dac_value[selected_dac] = 0; break;
     default: return;
@@ -177,8 +184,11 @@ int main(void)
   Analog_Init();
   HAL_Delay(200);
   OLED_Init();
-  uint32_t display_tick = HAL_GetTick();
-  UpdateDisplay();
+  uint32_t adc_tick = HAL_GetTick();
+  uint32_t display_tick = adc_tick;
+  adc_valid = Analog_Read(adc_values);
+  display_dirty = 1;
+  uint8_t display_page = OLED_PAGE_COUNT;
 
 
   /* USER CODE END 2 */
@@ -191,10 +201,26 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     ServiceKeys();
-    if (display_dirty || (uint32_t)(HAL_GetTick() - display_tick) >= 200U) {
-      display_dirty = 0;
-      display_tick = HAL_GetTick();
-      UpdateDisplay();
+    uint32_t now = HAL_GetTick();
+    if ((uint32_t)(now - adc_tick) >= ADC_REFRESH_MS) {
+      adc_tick = now;
+      adc_valid = Analog_Read(adc_values);
+      if (screen == SCREEN_ADC)
+        display_dirty = 1;
+    }
+    if (oled_ready) {
+      if (display_page == OLED_PAGE_COUNT &&
+          (display_dirty || (screen == SCREEN_ADC && dac_display_dirty &&
+                             (uint32_t)(now - display_tick) >= DAC_DISPLAY_REFRESH_MS))) {
+        display_dirty = 0;
+        dac_display_dirty = 0;
+        display_tick = now;
+        DrawDisplay();
+        display_page = 0;
+      }
+      /* Poll keys between OLED pages instead of blocking for a full frame. */
+      if (display_page < OLED_PAGE_COUNT)
+        ssd1306_UpdatePage(display_page++);
     }
 
   }

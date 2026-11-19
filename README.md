@@ -24,8 +24,8 @@ OLED SSD1306 128×64 korzysta z przeniesionych sterownika i fontów G031.
 Wykrywany jest pierwszy ekran pod adresem 7-bitowym 0x3C lub 0x3D
 (0x78/0x7A w HAL). Potrzebne są zewnętrzne pull-up na SDA/SCL do 3,3 V.
 Magistrala pracuje około 100 kHz przy PCLK=16 MHz. Brak OLED przy starcie
-nie zatrzymuje ADC, DAC i klawiatury. Ekran odświeża się co 200 ms i pokazuje
-surowe pomiary pięciu ADC w dwóch kolumnach (trzy wiersze) oraz nastawy
+nie zatrzymuje ADC, DAC i klawiatury. Ekran pokazuje surowe pomiary pięciu
+ADC w dwóch kolumnach (trzy wiersze) i odświeża je co 500 ms. Pokazuje też nastawy
 DAC1/DAC2 w osobnych wierszach poniżej; znak `>` oznacza wybrane wyjście.
 
 ## ADC i DAC
@@ -49,11 +49,14 @@ uznawania starych próbek za aktualne.
 
 Dwa wyjścia DAC: 12 bitów, bufor wyjściowy włączony, bez zewnętrznego
 wyzwalania. Startują od zera. Jedno naciśnięcie pin1/pin2 zmienia wybrany
-DAC o 64, z ograniczeniem 0–4095; pin3 przełącza kanał, pin4 zeruje wybrany
-kanał. Klawisze mają 30 ms eliminacji drgań, bez autorepetycji. Dodatkowe okno 100 ms pozwala zebrać kombinację kilku klawiszy przed
-wykonaniem akcji; krótki nacisk jest obsługiwany po zwolnieniu. Kolejna
-akcja wymaga zwolnienia wszystkich klawiszy. Sterowanie DAC działa na
-ekranie ADC/DAC; na ekranie FM te same klawisze sterują radiem.
+DAC o 1, z ograniczeniem 0–4095. Jeśli klawisz pozostaje wciśnięty przez
+sekundę po pierwszej zmianie, kolejne kroki o 1 są wykonywane co około 5 ms,
+zależnie od czasu obsługi OLED. Zwolnienie klawisza kończy powtarzanie.
+Pin3 przełącza kanał, pin4 zeruje wybrany kanał. Klawisze mają 8 ms
+eliminacji drgań i 40 ms na zebranie kombinacji. Krótki nacisk jest
+obsługiwany po zwolnieniu. Przed kolejną akcją zwolnij wszystkie klawisze.
+Powtarzanie działa tylko dla pin1/pin2 na ekranie ADC/DAC. Na ekranie FM
+te same klawisze sterują radiem.
 Nominalnie napięcie odpowiada `kod / 4095 * VREF+`; uwzględnij rzeczywiste
 VREF+, obciążenie i ograniczenia bufora DAC. ADC pracuje w zakresie 0–VREF+.
 Nie podłączaj napięć przekraczających dopuszczalne parametry mikrokontrolera.
@@ -73,9 +76,8 @@ uruchamiane — nie określono parametrów przebiegów ani trybu ich pracy.
 | pin3 + pin4 | Przykład 4: zestaw znaków na odwróconym tle |
 | pin1 + pin2 + pin3 | Ekran tytułowy Radio FM / Synteza częstotliwości |
 
-Przytrzymaj wybraną kombinację przez około 150–200 ms i zwolnij wszystkie
-klawisze przed następną akcją. Cztery klatki z `EXAMPLE_DrawTxt` w G031 są
-teraz osobnymi ekranami na jednym OLED. Nie ma pauzy 2300 ms ani przełączania
+Naciśnij klawisze kombinacji razem i zwolnij wszystkie przed następną akcją.
+Cztery klatki z `EXAMPLE_DrawTxt` w G031 są teraz osobnymi ekranami na jednym OLED. Nie ma pauzy 2300 ms ani przełączania
 na drugi fizyczny wyświetlacz. Pomiary ADC trwają w tle na każdym ekranie,
 a ustawienia DAC pozostają zachowane. Powrót do pomiarów: pin1+pin2.
 
@@ -119,9 +121,9 @@ python3 tests/test_regeneration.py
 Wyniki: `build/STM32G051.elf`, `.hex`, `.bin`, `.map`. Makefile obsługuje
 zależności nagłówków i nie zmienia zapisanych w repozytorium plików Debug.
 Sprawdzono GCC 14.2.1. Test hostowy wykonuje rzeczywisty kod GPIO z atrapą HAL:
-mapowanie czterech pinów, drgania, przytrzymanie, zwolnienie, kombinacje
-oraz przepełnienie licznika czasu. Test radia sprawdza listę stacji,
-ograniczenia strojenia, wzór dzielnika, adresy/kolejność bajtów PCF8575
+mapowanie czterech pinów, drgania, przytrzymanie, zwolnienie, kombinacje,
+szybkie powtarzanie DAC i przepełnienie licznika czasu. Test radia sprawdza
+listę stacji, ograniczenia strojenia, wzór dzielnika, adresy/kolejność bajtów PCF8575
 i obsługę błędów transmisji. Test ekranów renderuje cztery przykłady
 i ekran FM przez rzeczywiste fonty/sterownik SSD1306 do atrapy wyświetlacza;
 sprawdza powtarzalność kolorów, adresy OLED i widoczność błędów PCF.
