@@ -73,19 +73,15 @@ void HAL_MspInit(void)
   /* System interrupt init*/
 
   /* USER CODE BEGIN MspInit 1 */
-  /* Reserve schematic timer pins without starting either timer. */
+  /* Reserve the unused TIM2_CH1 pin. PB3 is configured by Pulse_Init. */
   GPIO_InitTypeDef timer_pins = {0};
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   timer_pins.Mode = GPIO_MODE_AF_PP;
   timer_pins.Pull = GPIO_NOPULL;
   timer_pins.Speed = GPIO_SPEED_FREQ_LOW;
   timer_pins.Pin = GPIO_PIN_0;
   timer_pins.Alternate = GPIO_AF2_TIM2;
   HAL_GPIO_Init(GPIOA, &timer_pins);
-  timer_pins.Pin = GPIO_PIN_3;
-  timer_pins.Alternate = GPIO_AF1_TIM3;
-  HAL_GPIO_Init(GPIOB, &timer_pins);
 
   /* USER CODE END MspInit 1 */
 }

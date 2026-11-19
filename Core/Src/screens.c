@@ -76,20 +76,28 @@ void Screen_DrawRadio(void)
   SSD1306_Txt(106,45,"MHz",Font_7x10,NoInvert);
 }
 
-/* Three rows for five ADC inputs, two separate rows for the DAC outputs.
- * Twelve-pixel ADC row spacing also leaves room for the legacy font padding. */
+/* USER CODE BEGIN MEASUREMENTS */
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
-                       const uint16_t dac[2], uint8_t selected)
+                       const uint16_t dac[2], uint8_t selected, const uint32_t hz[2])
 {
-  const uint8_t channels[ADC_INPUT_COUNT] = {1, 2, 3, 6, 7};
-  char line[24];
+  char line[18];
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
-    if (valid) snprintf(line, sizeof(line), "ADC%u:%4u", channels[i], adc[i]);
-    else snprintf(line, sizeof(line), "ADC%u:----", channels[i]);
-    SSD1306_Txt((i % 2U) * 64U, (i / 2U) * 12U, line, Font_7x10, NoInvert);
+    if (valid)
+      snprintf(line, sizeof(line), "%4u", (unsigned)adc[i]);
+    else
+      snprintf(line, sizeof(line), "----");
+    SSD1306_Txt((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10, NoInvert);
   }
+
+  snprintf(line, sizeof(line), "PF2:%lu Hz", (unsigned long)hz[0]);
+  SSD1306_Txt(0, 24, line, Font_7x10, NoInvert);
+  snprintf(line, sizeof(line), "PB3:%lu Hz", (unsigned long)hz[1]);
+  SSD1306_Txt(0, 34, line, Font_7x10, NoInvert);
+
   for (uint8_t i = 0; i < 2; ++i) {
-    snprintf(line, sizeof(line), "%cDAC%u:%4u", selected == i ? '>' : ' ', i + 1U, dac[i]);
-    SSD1306_Txt(0, 40U + i * 12U, line, Font_7x10, NoInvert);
+    snprintf(line, sizeof(line), "%cDAC%u:%4u", selected == i ? '>' : ' ',
+             (unsigned)(i + 1U), (unsigned)dac[i]);
+    SSD1306_Txt(0, 44U + i * 10U, line, Font_7x10, NoInvert);
   }
 }
+/* USER CODE END MEASUREMENTS */

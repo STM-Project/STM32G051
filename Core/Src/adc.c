@@ -43,6 +43,18 @@ void MX_ADC1_Init(void)
     ADC_Check(HAL_ADC_ConfigChannel(&hadc1, &adc_channel));
   }
   /* USER CODE BEGIN ADC1_Init 2 */
+  /* Support this checkout before CubeMX regenerates the six-rank init. */
+  if (hadc1.Init.NbrOfConversion == 5U) {
+    hadc1.Init.NbrOfConversion = 6U;
+    SET_BIT(hadc1.Instance->CHSELR, ADC_CHSELR_SQ7);
+    ADC_ChannelConfTypeDef channel8 = {
+      .Channel = ADC_CHANNEL_8,
+      .Rank = ADC_REGULAR_RANK_6,
+      .SamplingTime = ADC_SAMPLINGTIME_COMMON_1
+    };
+    if (HAL_ADC_ConfigChannel(&hadc1, &channel8) != HAL_OK)
+      Error_Handler();
+  }
   /* Calibration intentionally skipped during startup diagnosis. */
   /* USER CODE END ADC1_Init 2 */
 }
@@ -70,6 +82,13 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adc)
   HAL_NVIC_SetPriority(ADC1_COMP_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(ADC1_COMP_IRQn);
   /* USER CODE BEGIN ADC1_MspInit 1 */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  GPIO_InitTypeDef pb0 = {
+    .Pin = GPIO_PIN_0,
+    .Mode = GPIO_MODE_ANALOG,
+    .Pull = GPIO_NOPULL
+  };
+  HAL_GPIO_Init(GPIOB, &pb0);
   /* USER CODE END ADC1_MspInit 1 */
 }
 /* USER CODE BEGIN 1 */

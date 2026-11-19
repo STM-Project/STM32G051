@@ -54,6 +54,8 @@ void SysTick_Handler(void);
 void DMA1_Channel1_IRQHandler(void);
 void ADC1_COMP_IRQHandler(void);
 /* USER CODE BEGIN EFP */
+void Pulse_Init(void);
+uint8_t Pulse_ReadHz(uint32_t hz[2]);
 
 /* USER CODE END EFP */
 

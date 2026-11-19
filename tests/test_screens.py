@@ -88,15 +88,17 @@ static unsigned pixels(unsigned x0, unsigned y0, unsigned w, unsigned h) {
   return count;
 }
 int main(void) {
-  uint16_t adc[5]={111,222,333,666,777}, dac[2]={1234,4095};
+  uint16_t adc[ADC_INPUT_COUNT]={111,222,333,666,777,4095}, dac[2]={1234,4095};
+  uint32_t hz[2]={1234,4294967294U};
   SSD1306_DispBK(address,NoInvert);
-  Screen_DrawAnalog(adc,1,dac,0); ssd1306_UpdateScreen();
-  for(unsigned i=0;i<5;i++) assert(pixels((i%2)*64,(i/2)*12,63,10)>0);
-  assert(pixels(7,40,63,10)>0 && pixels(7,52,63,10)>0); /* both DAC rows */
-  assert(pixels(0,40,7,10)>0 && pixels(0,52,7,10)==0); /* selected DAC1 */
+  Screen_DrawAnalog(adc,1,dac,0,hz); ssd1306_UpdateScreen();
+  for(unsigned i=0;i<ADC_INPUT_COUNT;i++) assert(pixels((i%3)*42,(i/3)*12,28,10)>0);
+  assert(pixels(0,24,126,10)>0 && pixels(0,34,126,10)>0);
+  assert(pixels(7,44,63,10)>0 && pixels(7,54,63,10)>0); /* both DAC rows */
+  assert(pixels(0,44,7,10)>0 && pixels(0,54,7,10)==0); /* selected DAC1 */
   SSD1306_DispBK(address,NoInvert);
-  Screen_DrawAnalog(adc,0,dac,1); ssd1306_UpdateScreen();
-  assert(pixels(0,40,7,10)==0 && pixels(0,52,7,10)>0); /* selected DAC2 */
+  Screen_DrawAnalog(adc,0,dac,1,hz); ssd1306_UpdateScreen();
+  assert(pixels(0,44,7,10)==0 && pixels(0,54,7,10)>0); /* selected DAC2 */
   /* A glyph ending exactly at the right/bottom edges is valid. */
   SSD1306_DispBK(address,NoInvert);
   ssd1306_SetCursor(121,54);
@@ -137,7 +139,7 @@ int main(void) {
       }
     }
   }
-  puts("PASS: five ADC/two DAC rows, selection, edges, demos, 24 FM presets/tuning/errors, no clipping");
+  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, 24 FM presets/tuning/errors, no clipping");
 }
 '''
     (out/'test.c').write_text(harness.replace('PRESET_ROWS', presets))

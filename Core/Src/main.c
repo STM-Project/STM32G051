@@ -29,6 +29,7 @@
 #include "gpio.h"
 #include "i2c.h"
 #include "analog.h"
+#include "stm32g0xx_it.h"
 #include "ssd1306.h"
 #include "screens.h"
 #include "radio.h"
@@ -43,7 +44,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADC_REFRESH_MS 500U
 #define DAC_DISPLAY_REFRESH_MS 125U
 #define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
 
@@ -68,6 +68,7 @@ static uint8_t display_dirty;
 static uint8_t dac_display_dirty;
 static uint16_t adc_values[ADC_INPUT_COUNT];
 static uint8_t adc_valid;
+static uint32_t pulse_hz[2];
 
 
 /* USER CODE END PV */
@@ -97,7 +98,7 @@ static void DrawDisplay(void)
 {
   SSD1306_DispBK(oled_address, NoInvert);
   switch (screen) {
-    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac); break;
+    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac, pulse_hz); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
     default: Screen_DrawExample((uint8_t)(screen - SCREEN_DEMO0)); break;
@@ -127,9 +128,6 @@ static void ServiceKeys(void)
     case 3: screen = SCREEN_ADC; return;   /* pin1+pin2 */
     case 5: screen = SCREEN_FM; Radio_Apply(); return; /* pin1+pin3 */
     case 6: screen = SCREEN_DEMO0; return; /* pin2+pin3 */
-    case 9: screen = SCREEN_DEMO1; return; /* pin1+pin4 */
-    case 10: screen = SCREEN_DEMO2; return; /* pin2+pin4 */
-    case 12: screen = SCREEN_DEMO3; return; /* pin3+pin4 */
     case 7: screen = SCREEN_INTRO; return; /* pin1+pin2+pin3 */
     default: break;
   }
@@ -137,7 +135,6 @@ static void ServiceKeys(void)
   if (screen != SCREEN_ADC) return;
   switch (keys) {
     case 4: selected_dac ^= 1; break;
-    case 8: dac_value[selected_dac] = 0; break;
     default: return;
   }
   if (Analog_SetDAC(selected_dac, dac_value[selected_dac]) != HAL_OK)
@@ -184,8 +181,8 @@ int main(void)
   Analog_Init();
   HAL_Delay(200);
   OLED_Init();
-  uint32_t adc_tick = HAL_GetTick();
-  uint32_t display_tick = adc_tick;
+  Pulse_Init();
+  uint32_t display_tick = HAL_GetTick();
   adc_valid = Analog_Read(adc_values);
   display_dirty = 1;
   uint8_t display_page = OLED_PAGE_COUNT;
@@ -202,8 +199,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     ServiceKeys();
     uint32_t now = HAL_GetTick();
-    if ((uint32_t)(now - adc_tick) >= ADC_REFRESH_MS) {
-      adc_tick = now;
+    if (Pulse_ReadHz(pulse_hz)) {
       adc_valid = Analog_Read(adc_values);
       if (screen == SCREEN_ADC)
         display_dirty = 1;
