@@ -182,19 +182,19 @@ void Screen_DrawPCF(const uint16_t values[2], uint8_t selected_byte,
   }
   for (uint8_t chip = 0; chip < 2; ++chip) {
     uint8_t x = chip == 0 ? 0 : 79;
-    uint8_t y = chip == 0 ? 51 : 59;
+    uint8_t y = chip == 0 ? 46 : 57;
     snprintf(hex, sizeof(hex), "%02X", (unsigned)(values[chip] >> 8));
-    SSD1306_Txt(x, 24, hex, Font_11x18, NoInvert);
+    SSD1306_Txt(x, 23, hex, Font_11x18, NoInvert);
     snprintf(hex, sizeof(hex), "%02X", (unsigned)(values[chip] & 0xFFU));
-    SSD1306_Txt(x + byte_spacing, 24, hex, Font_11x18, NoInvert);
+    SSD1306_Txt(x + byte_spacing, 23, hex, Font_11x18, NoInvert);
     if (chip == selected_byte / 2U)
-      SSD1306_rect(x + byte_spacing * (selected_byte % 2U), 42, 22, 1);
+      SSD1306_rect(x + byte_spacing * (selected_byte % 2U), 41, 22, 1);
 
     for (uint8_t col = 0; col < 16; ++col) {
       if ((values[chip] & (1U << (15U - col))) != 0U)
-        SSD1306_roundRect(8U * col + 1U, y, 5, 5);
+        SSD1306_roundRect(8U * col, y, 7, 7);
       else
-        SSD1306_roundFrame(8U * col + 1U, y, 5, 5);
+        SSD1306_roundFrame(8U * col, y, 7, 7);
     }
   }
 }

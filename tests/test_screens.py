@@ -151,23 +151,32 @@ int main(void) {
     if (failed==ANALOG_CAL_DAC_CH1) memcpy(frames[0],frame,sizeof(frame));
     if (failed==ANALOG_CAL_DAC_CH2) assert(memcmp(frames[0],frame,sizeof(frame))!=0);
   }
+  station_divider=1;
+  SSD1306_DispBK(address,NoInvert);
+  Screen_DrawRadio();
+  ssd1306_UpdateScreen();
+  memcpy(frames[2],frame,sizeof(frame));
   const uint16_t ports[2] = {0x8000,0x0001};
   SSD1306_DispBK(address,NoInvert);
   Screen_DrawPCF(ports,3,0);
   ssd1306_UpdateScreen();
-  assert(pixels(0,24,22,18)>0 && pixels(27,24,22,18)>0);
-  assert(pixels(79,24,22,18)>0 && pixels(106,24,22,18)>0);
-  assert(pixels(22,24,5,18)==0 && pixels(101,24,5,18)==0);
-  assert(pixels(49,24,30,18)==0);
+  assert(pixels(0,23,22,18)>0 && pixels(27,23,22,18)>0);
+  assert(pixels(79,23,22,18)>0 && pixels(106,23,22,18)>0);
+  assert(pixels(22,23,5,18)==0 && pixels(101,23,5,18)==0);
+  assert(pixels(49,23,30,18)==0);
   assert(pixels(0,2,128,10)>0 && pixels(0,14,128,10)==0);
-  assert(pixels(3,53,1,1)==1 && pixels(123,53,1,1)==0);
-  assert(pixels(3,61,1,1)==0 && pixels(123,61,1,1)==1);
-  assert(pixels(106,42,22,1)==22);
-  assert(pixels(0,56,128,3)==0 && pixels(0,63,128,1)>0);
+  assert(pixels(3,49,1,1)==1 && pixels(123,49,1,1)==0);
+  assert(pixels(3,60,1,1)==0 && pixels(123,60,1,1)==1);
+  /* The filled and hollow markers match Radio FM pixel for pixel. */
+  for (unsigned row=0; row<7; ++row)
+    for (unsigned x=0; x<16; ++x)
+      assert(pixels(x,46+row,1,1)==((frames[2][3*128+x] >> row) & 1));
+  assert(pixels(106,41,22,1)==22);
+  assert(pixels(0,53,128,4)==0 && pixels(0,63,128,1)>0);
   SSD1306_DispBK(address,NoInvert);
   Screen_DrawPCF(ports,0,1);
   ssd1306_UpdateScreen();
-  assert(pixels(0,42,22,1)==22);
+  assert(pixels(0,41,22,1)==22);
   assert(pixels(0,14,128,10)>0);
   /* Verify that all timed face frames fit and the key poses visibly differ. */
   for (unsigned i=0; i<=40; ++i) {
