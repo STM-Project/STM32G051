@@ -192,9 +192,15 @@ int main(void)
   MX_DAC1_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  Analog_Init();
+  uint8_t calibration_failed = Analog_Init();
   HAL_Delay(200);
   OLED_Init();
+  if (oled_ready && calibration_failed) {
+    SSD1306_DispBK(oled_address, NoInvert);
+    Screen_DrawCalibrationWarning(calibration_failed);
+    ssd1306_UpdateScreen();
+    HAL_Delay(2000U);
+  }
   Pulse_Init();
   uint32_t display_tick = HAL_GetTick();
   adc_valid = Analog_Read(adc_values);

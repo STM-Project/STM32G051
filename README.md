@@ -32,10 +32,18 @@ DAC1/DAC2 w osobnych wierszach poniżej; znak `>` oznacza wybrane wyjście.
 
 ADC1: 12 bitów, pięć kanałów w kolejności IN1, IN2, IN3, IN6, IN7,
 ciągła konwersja, zegar 4 MHz, próbkowanie 160,5 cyklu.
-Kalibracja przy starcie jest pominięta na czas diagnostyki zatrzymania
-programu w `HAL_ADCEx_Calibration_Start`. Pomiary mogą mieć większy błąd
-offsetu; pominięcie kalibracji nie potwierdza usunięcia przyczyny zatrzymania.
-Około 4624 pełnych skanów/s. DMA1_Channel1 pracuje w trybie Circular:
+Przy starcie firmware kalibruje offset ADC przed włączeniem DMA i offset
+buforów obu kanałów DAC przed włączeniem wyjść. Jeśli kalibracja ADC
+nie powiedzie się, a ADC nadal jest w stanie bezczynności, firmware
+uruchamia standardową konwersję. Jeśli ADC pozostaje zajęty lub DMA
+nie wystartuje, urządzenie działa dalej, a OLED pokazuje `----` dla ADC.
+W razie błędu kalibracji OLED pokazuje przez 2 s komunikat
+`BRAK KALIBRACJI` i wskazuje ADC1 (wspólną kalibrację dla wszystkich
+wejść ADC) lub odpowiedni kanał DAC. Kalibracja zmniejsza błąd zera.
+Dokładność wzmocnienia, napięcie VREF+ i wpływ obciążenia wyjścia
+wymagają osobnej weryfikacji.
+
+DMA1_Channel1 pracuje w trybie Circular:
 Peripheral to Memory, half-word (16 bitów), Memory Increment włączone,
 Peripheral Increment wyłączone, priorytet High. ADC ma włączone Continuous
 Conversion i DMA Continuous Requests. Bufor zawiera 100 próbek (20 skanów),
@@ -143,8 +151,8 @@ oraz generowanie osobnych plików `.c/.h` peryferiów (`CoupleFile=true`).
 `hdac1` mają jedną definicję w tych modułach. Main wywołuje wygenerowane
 inicjalizacje przed `USER CODE BEGIN 2`, w kolejności GPIO, DMA, ADC, DAC, I2C.
 W USER CODE 2 pozostaje tylko uruchomienie aplikacji, DMA i wyjść DAC przez
-`Analog_Init`, inicjalizacja OLED i pierwsze rysowanie. Kalibracja pozostaje
-pominięta; generator standardowo nie uruchamia jej w `MX_ADC1_Init`.
+`Analog_Init`, inicjalizacja OLED i pierwsze rysowanie. Kalibracja jest wykonywana w
+`Analog_Init` przed uruchomieniem ADC i wyjść DAC.
 
 Funkcje wektorów `DMA1_Channel1_IRQHandler` i `ADC1_COMP_IRQHandler` są
 wyłącznie w `stm32g0xx_it.c` i korzystają z tych samych uchwytów co aplikacja.

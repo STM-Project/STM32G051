@@ -77,6 +77,22 @@ void Screen_DrawRadio(void)
 }
 
 /* USER CODE BEGIN MEASUREMENTS */
+void Screen_DrawCalibrationWarning(uint8_t failed)
+{
+  const uint8_t adc = failed & ANALOG_CAL_ADC1;
+  const uint8_t dac = failed & (ANALOG_CAL_DAC_CH1 | ANALOG_CAL_DAC_CH2);
+  SSD1306_TxtMiddBK(0, 2, SSD1306_WIDTH, 18, "BRAK", Font_11x18, NoInvert);
+  SSD1306_TxtMiddBK(0, 21, SSD1306_WIDTH, 18, "KALIBRACJI", Font_11x18, NoInvert);
+  if (adc)
+    SSD1306_TxtMiddBK(0, 42, SSD1306_WIDTH, 10, "ADC1 IN1,2,3,6,7,8", Font_7x10, NoInvert);
+  if (dac) {
+    const char *detail = dac == ANALOG_CAL_DAC_CH1 ? "DAC CH 1" :
+                         dac == ANALOG_CAL_DAC_CH2 ? "DAC CH 2" : "DAC CH 1,2";
+    SSD1306_TxtMiddBK(0, adc ? 53 : 42, SSD1306_WIDTH, 10, detail, Font_7x10, NoInvert);
+  }
+}
+
+
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
                        const uint16_t dac[2], uint8_t selected, const uint32_t hz[2])
 {

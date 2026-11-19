@@ -55,7 +55,6 @@ void MX_ADC1_Init(void)
     if (HAL_ADC_ConfigChannel(&hadc1, &channel8) != HAL_OK)
       Error_Handler();
   }
-  /* Calibration intentionally skipped during startup diagnosis. */
   /* USER CODE END ADC1_Init 2 */
 }
 void HAL_ADC_MspInit(ADC_HandleTypeDef *adc)

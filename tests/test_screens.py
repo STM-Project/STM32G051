@@ -140,6 +140,17 @@ int main(void) {
       }
     }
   }
+  for (unsigned failed=1; failed<8; ++failed) {
+    SSD1306_DispBK(address,NoInvert);
+    Screen_DrawCalibrationWarning(failed);
+    ssd1306_UpdateScreen();
+    assert(pixels(0,2,128,18)>0 && pixels(0,21,128,18)>0);
+    assert(pixels(0,42,128,10)>0);
+    if ((failed & ANALOG_CAL_ADC1) && (failed & (ANALOG_CAL_DAC_CH1 | ANALOG_CAL_DAC_CH2)))
+      assert(pixels(0,53,128,10)>0);
+    if (failed==ANALOG_CAL_DAC_CH1) memcpy(frames[0],frame,sizeof(frame));
+    if (failed==ANALOG_CAL_DAC_CH2) assert(memcmp(frames[0],frame,sizeof(frame))!=0);
+  }
   /* Verify that all timed face frames fit and the key poses visibly differ. */
   for (unsigned i=0; i<=20; ++i) {
     SSD1306_DispBK(address,NoInvert);

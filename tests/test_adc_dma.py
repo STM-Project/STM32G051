@@ -17,7 +17,11 @@ with tempfile.TemporaryDirectory() as tmp:
     # Opaque HAL constants: unique values let assertions distinguish settings.
     constants = sorted(set(re.findall(r'\b(?:ADC|DAC|DMA|GPIO)_[A-Z][A-Z_0-9]*\b', source)) -
                        {'ADC_INPUT_COUNT', 'ADC_DMA_SCAN_COUNT', 'ADC_DMA_SAMPLE_COUNT', 'ADC_DMA_HALF_SAMPLE_COUNT'})
-    defines = '\n'.join(f'#define {name} {i+1}U' for i, name in enumerate(constants))
+    register_bits = [name for name in constants if name.startswith(('ADC_CR_', 'ADC_CFGR1_'))]
+    defines = '\n'.join(f'#define {name} {i+1}U' for i, name in enumerate(constants)
+                        if name not in register_bits)
+    defines += '\n' + '\n'.join(f'#define {name} (1U << {i})'
+                                 for i, name in enumerate(register_bits))
     fields = '''Request Direction PeriphInc MemInc PeriphDataAlignment MemDataAlignment Mode Priority
 ClockPrescaler Resolution DataAlign ScanConvMode EOCSelection ContinuousConvMode NbrOfConversion
 DiscontinuousConvMode ExternalTrigConv ExternalTrigConvEdge DMAContinuousRequests Overrun
@@ -29,10 +33,11 @@ SamplingTimeCommon1 SamplingTimeCommon2 TriggerFrequencyMode'''.split()
 typedef enum { HAL_OK, HAL_ERROR } HAL_StatusTypeDef;
 #define ENABLE 1U
 #define DISABLE 0U
-typedef struct { uint32_t CHSELR; } MockADC;
+typedef struct { uint32_t CHSELR, CR, CFGR1; } MockADC;
 static MockADC adc_registers;
 #define ADC1 (&adc_registers)
 #define SET_BIT(reg, bit) ((reg) |= (bit))
+#define MODIFY_REG(reg, clear, set) ((reg) = ((reg) & ~(clear)) | (set))
 #define DAC1 ((void *)2)
 #define DMA1_Channel1 ((void *)3)
 #define GPIOA ((void *)4)
@@ -65,6 +70,8 @@ HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef *, DAC_ChannelConfType
 HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *, uint32_t);
 HAL_StatusTypeDef HAL_DAC_SetValue(DAC_HandleTypeDef *, uint32_t, uint32_t, uint32_t);
 HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *, uint32_t *, uint32_t);
+HAL_StatusTypeDef HAL_ADCEx_Calibration_Start(ADC_HandleTypeDef *);
+HAL_StatusTypeDef HAL_DACEx_SelfCalibrate(DAC_HandleTypeDef *, DAC_ChannelConfTypeDef *, uint32_t);
 void HAL_DMA_IRQHandler(DMA_HandleTypeDef *);
 void HAL_ADC_IRQHandler(ADC_HandleTypeDef *);
 uint32_t __get_PRIMASK(void);
@@ -82,6 +89,7 @@ void __set_PRIMASK(uint32_t);
 #include <stdio.h>
 static unsigned configured, dma_irq, adc_irq, started, analog_pb0;
 static uint32_t mask;
+static unsigned scenario, adc_calibrated, dac_calibrated, dac_started;
 void Error_Handler(void) { abort(); }
 void HAL_GPIO_Init(void *p, GPIO_InitTypeDef *g) {
   if (p == GPIOB) {
@@ -101,6 +109,7 @@ void HAL_NVIC_SetPriority(int irq,int p,int s) { (void)irq; (void)p; (void)s; }
 void HAL_NVIC_EnableIRQ(int irq) { if(irq==9) dma_irq=1; if(irq==12) adc_irq=1; }
 HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef *a) {
   HAL_ADC_MspInit(a);
+  a->Instance->CFGR1 = ADC_CFGR1_DMACFG;
   assert(a->DMA_Handle==&hdma_adc1 && a->DMA_Handle->Parent==a);
   assert(a->Init.ContinuousConvMode==ENABLE && a->Init.DMAContinuousRequests==ENABLE);
   assert(a->Init.ScanConvMode==ADC_SCAN_ENABLE && a->Init.NbrOfConversion==5);
@@ -115,23 +124,59 @@ HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *a,ADC_ChannelConfType
 }
 HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef *d) { HAL_DAC_MspInit(d); return HAL_OK; }
 HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef *d,DAC_ChannelConfTypeDef *c,uint32_t ch) { (void)d;(void)c;(void)ch; return HAL_OK; }
-HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *d,uint32_t ch) { (void)d;(void)ch; return HAL_OK; }
+HAL_StatusTypeDef HAL_DACEx_SelfCalibrate(DAC_HandleTypeDef *d,DAC_ChannelConfTypeDef *c,uint32_t ch) {
+  assert(d==&hdac1 && c && !dac_started);
+  assert(ch==(dac_calibrated==0 ? DAC_CHANNEL_1 : DAC_CHANNEL_2));
+  ++dac_calibrated;
+  return ((scenario==1 && ch==DAC_CHANNEL_1) ||
+          (scenario==4 && ch==DAC_CHANNEL_2)) ? HAL_ERROR : HAL_OK;
+}
+HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef *d,uint32_t ch) {
+  assert(d==&hdac1 && dac_calibrated==2);
+  assert(ch==(dac_started==0 ? DAC_CHANNEL_1 : DAC_CHANNEL_2));
+  ++dac_started;
+  return HAL_OK;
+}
+HAL_StatusTypeDef HAL_ADCEx_Calibration_Start(ADC_HandleTypeDef *a) {
+  assert(a==&hadc1 && !started);
+  ++adc_calibrated;
+  if (scenario==1 || scenario==2) {
+    a->Instance->CFGR1 = 0;
+    if (scenario==2) a->Instance->CR = ADC_CR_ADCAL;
+    return HAL_ERROR;
+  }
+  return HAL_OK;
+}
 HAL_StatusTypeDef HAL_DAC_SetValue(DAC_HandleTypeDef *d,uint32_t ch,uint32_t al,uint32_t v) { (void)d;(void)ch;(void)al;(void)v; return HAL_OK; }
 HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *a,uint32_t *buf,uint32_t n) {
   assert(a==&hadc1 && configured==ADC_INPUT_COUNT && dma_irq && adc_irq && analog_pb0);
   assert(a->Init.NbrOfConversion==ADC_INPUT_COUNT && (ADC1->CHSELR & ADC_CHSELR_SQ7));
   assert((void *)buf==(void *)adc_dma && n==120 && ((uintptr_t)buf%4)==0);
-  ++started; return HAL_OK;
+  assert(adc_calibrated==1 && (ADC1->CFGR1 & ADC_CFGR1_DMACFG));
+  ++started;
+  return scenario==3 ? HAL_ERROR : HAL_OK;
 }
 void HAL_DMA_IRQHandler(DMA_HandleTypeDef *d) { assert(d==&hdma_adc1); }
 void HAL_ADC_IRQHandler(ADC_HandleTypeDef *a) { assert(a==&hadc1); }
 uint32_t __get_PRIMASK(void) { return mask; }
 void __disable_irq(void) { mask=1; }
 void __set_PRIMASK(uint32_t m) { mask=m; }
-int main(void) {
+int main(int argc, char **argv) {
+  assert(argc==2);
+  scenario=(unsigned)atoi(argv[1]);
   uint16_t result[ADC_INPUT_COUNT];
   MX_DMA_Init(); MX_ADC1_Init(); MX_DAC1_Init();
-  Analog_Init(); assert(started==1 && !Analog_Read(result));
+  const uint8_t expected[] = {0, ANALOG_CAL_ADC1 | ANALOG_CAL_DAC_CH1,
+                              ANALOG_CAL_ADC1, 0, ANALOG_CAL_DAC_CH2};
+  assert(Analog_Init()==expected[scenario]);
+  assert(dac_started==2 && adc_calibrated==1 && !Analog_Read(result));
+  assert(started==(scenario==2 ? 0 : 1));
+  if (scenario==2 || scenario==3) {
+    assert(adc_fault);
+    puts("PASS: ADC startup fault keeps DAC active and ADC readings unavailable");
+    return 0;
+  }
+  assert(!adc_fault);
   ADC_HandleTypeDef unrelated={0};
   HAL_ADC_ConvCpltCallback(&unrelated); assert(!Analog_Read(result));
   for(unsigned round=0;round<4;round++) {
@@ -147,8 +192,9 @@ int main(void) {
   HAL_DMA_IRQHandler(&hdma_adc1); HAL_ADC_IRQHandler(&hadc1);
   HAL_ADC_ErrorCallback(&unrelated); assert(Analog_Read(result));
   HAL_ADC_ErrorCallback(&hadc1); assert(!Analog_Read(result));
-  puts("PASS: circular DMA init, scan ranks, repeated half/full callbacks, coherent snapshots, IRQ routing, errors");
+  puts("PASS: calibration order and fallback, circular DMA init, scan ranks, repeated half/full callbacks, coherent snapshots, IRQ routing, errors");
 }
 ''')
     subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',str(out/'test.c'),'-o',str(out/'test')],check=True)
-    subprocess.run([str(out/'test')],check=True)
+    for scenario in range(5):
+        subprocess.run([str(out/'test'), str(scenario)], check=True)
