@@ -11,6 +11,7 @@ enum {
 };
 void Screen_DrawI2CError(uint8_t sources);
 void Screen_DrawCalibrationWarning(uint8_t failed);
+/* Pass DAC_VALUE_COUNT to draw without a selected DAC. */
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
                        const uint16_t dac[DAC_VALUE_COUNT], uint8_t selected,
                        const uint32_t hz[2]);

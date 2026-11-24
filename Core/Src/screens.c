@@ -131,10 +131,12 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
     uint8_t x = (i % 3U) * 42U;
     uint8_t y = 40U + (i / 3U) * 12U;
     snprintf(line, sizeof(line), "%4u", (unsigned)dac[i]);
+    if (i == selected)
+      ssd1306_InvertColors();
     SSD1306_TxtCompact(x, y, line, Font_7x10);
+    if (i == selected)
+      ssd1306_InvertColors();
   }
-  SSD1306_rect((selected % 3U) * 42U, 50U + (selected / 3U) * 12U,
-               4U * Font_7x10.FontWidth, 1U);
 }
 /* USER CODE END MEASUREMENTS */
 

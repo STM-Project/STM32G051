@@ -29,8 +29,11 @@ dwie częstotliwości w jednym wierszu (PA0 po lewej, PB3 po prawej)
 i sześć nastaw DAC. Każde pole częstotliwości mieści pięć cyfr i dopisek
 `Hz`. Wynik powyżej zakresu jest wyświetlany jako `>99999Hz`. Nastawy DAC zajmują dwie linie
 po trzy liczby bez etykiet. Kolejność od lewej do prawej: u góry PA4, PA5,
-MCP4728 A, u dołu MCP4728 B, C, D. Pozioma kreska pod liczbą wskazuje
-wybrane wyjście. Widoczne liczby są nastawami w zakresie 0–4095.
+MCP4728 A, u dołu MCP4728 B, C, D. Po starcie wszystkie nastawy są wyświetlane zwykłym tekstem. Pierwsze
+naciśnięcie pin1, pin2 lub pin3 zaznacza PA4 w negatywie. Kolejne naciśnięcia
+pin3 wybierają następne wyjście. Po MCP4728 D kolejne naciśnięcie usuwa
+zaznaczenie, a następne wybiera ponownie PA4. Nastawy mieszczą się
+w zakresie 0–4095.
 
 Błąd komunikacji na I2C2 z OLED lub MCP4728 zastępuje bieżący ekran
 komunikatem `ERROR I2C` i wierszem `OLED`, `MCP4728A1` lub
@@ -73,7 +76,7 @@ sekundę po pierwszej zmianie, kolejne kroki o 1 są wykonywane co około 5 ms,
 zależnie od czasu obsługi OLED. Po przytrzymaniu przycisku przez ponad 5 s
 krok DAC wzrasta do 10, z ograniczeniem do 0–4095. Zwolnienie przycisku
 kończy powtarzanie.
-Pin3 wybiera następny z sześciu kanałów (po D wraca do PA4).
+Pin3 przechodzi przez sześć kanałów i stan bez zaznaczenia.
 Pin4 zeruje wybrany kanał. Klawisze mają 8 ms
 eliminacji drgań i 40 ms na zebranie kombinacji. Krótki nacisk jest
 obsługiwany po zwolnieniu. Przed kolejną akcją zwolnij wszystkie klawisze.

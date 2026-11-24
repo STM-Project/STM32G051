@@ -71,6 +71,7 @@ static uint8_t external_dac_pending = (1U << MCP4728_CHANNEL_COUNT) - 1U;
 static uint8_t external_dac_error;
 static uint32_t external_dac_retry_tick;
 static uint8_t selected_dac;
+static uint8_t dac_selection_visible;
 static uint8_t oled_ready;
 static uint16_t oled_address;
 static uint32_t oled_retry_tick;
@@ -157,7 +158,8 @@ static void DrawDisplay(void)
 {
   SSD1306_DispBK(oled_address, NoInvert);
   switch (screen) {
-    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac,
+    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value,
+                                       dac_selection_visible ? selected_dac : DAC_VALUE_COUNT,
                                        pulse_hz); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
@@ -262,6 +264,10 @@ static void ServiceKeys(void)
   uint8_t keys = INPUT_PollPress(repeat_mask, &repeat_held_ms);
   if (keys == 0) return;
   if (screen == SCREEN_ADC && (keys == 1U || keys == 2U)) {
+    if (!dac_selection_visible) {
+      dac_selection_visible = 1U;
+      display_dirty = 1U;
+    }
     uint16_t step = repeat_held_ms > DAC_FAST_HOLD_MS ? 10U : 1U;
     uint16_t current = dac_value[selected_dac];
     uint16_t value;
@@ -299,7 +305,16 @@ static void ServiceKeys(void)
   if (screen == SCREEN_FM) { Radio_Key(keys); return; }
   if (screen != SCREEN_ADC) return;
   switch (keys) {
-    case 4: selected_dac = (selected_dac + 1U) % DAC_VALUE_COUNT; break;
+    case 4:
+      if (!dac_selection_visible) {
+        dac_selection_visible = 1U;
+      } else if (selected_dac == DAC_VALUE_COUNT - 1U) {
+        selected_dac = 0U;
+        dac_selection_visible = 0U;
+      } else {
+        ++selected_dac;
+      }
+      break;
     case 8: SetSelectedDAC(0U); break;
     default: return;
   }

@@ -92,12 +92,12 @@ static unsigned pixels(unsigned x0, unsigned y0, unsigned w, unsigned h) {
     count += (frame[(y/8)*128+x] >> (y%8)) & 1;
   return count;
 }
-static void assert_text(unsigned x0, unsigned y0, const char *text, unsigned width) {
+static void assert_text(unsigned x0, unsigned y0, const char *text, unsigned width, unsigned inverted) {
   for (; *text; ++text, x0 += width) {
     const uint16_t *glyph = Font_7x10.data + (*text - ' ') * Font_7x10.FontHeight;
     for (unsigned y=0; y<Font_7x10.FontHeight; ++y)
       for (unsigned x=0; x<width; ++x)
-        assert(pixels(x0+x,y0+y,1,1) == ((glyph[y] >> (15-x)) & 1U));
+        assert(pixels(x0+x,y0+y,1,1) == (((glyph[y] >> (15-x)) & 1U) ^ inverted));
   }
 }
 int main(void) {
@@ -106,28 +106,28 @@ int main(void) {
   const uint32_t hz[][2]={{1234,25000},{0,99999},{100000,UINT32_MAX}};
   const char *labels[][2]={{"  1234"," 25000"},{"     0"," 99999"},
                            {">99999",">99999"}};
-  for (unsigned selected=0; selected<DAC_VALUE_COUNT; ++selected) {
+  for (unsigned selected=0; selected<=DAC_VALUE_COUNT; ++selected) {
     SSD1306_DispBK(address,NoInvert);
     Screen_DrawAnalog(adc,1,dac,selected,hz[selected%3]);
     ssd1306_UpdateScreen();
     char line[18];
     for (unsigned i=0; i<ADC_INPUT_COUNT; ++i) {
       snprintf(line,sizeof(line),"%4u",(unsigned)adc[i]);
-      assert_text((i%3)*42,(i/3)*12,line,7);
+      assert_text((i%3)*42,(i/3)*12,line,7,0);
     }
-    assert_text(0,26,labels[selected%3][0],7);
-    assert_text(64,26,labels[selected%3][1],7);
+    assert_text(0,26,labels[selected%3][0],7,0);
+    assert_text(64,26,labels[selected%3][1],7,0);
     assert(pixels(42,26,1,10)==0 && pixels(106,26,1,10)==0);
-    assert_text(43,26,"Hz",7);
-    assert_text(107,26,"Hz",7);
+    assert_text(43,26,"Hz",7,0);
+    assert_text(107,26,"Hz",7,0);
     assert(pixels(57,26,7,10)==0 && pixels(121,26,7,10)==0);
     assert(pixels(119,12,7,10)==0);
     for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
       unsigned x=(i%3)*42, y=40+(i/3)*12;
       snprintf(line,sizeof(line),"%4u",(unsigned)dac[i]);
-      assert_text(x,y,line,7);
+      assert_text(x,y,line,7,i==selected);
       assert(pixels(x+28,y,14,11)==0);
-      assert(pixels(x,y+10,28,1)==(i==selected ? 28 : 0));
+      assert(pixels(x,y+10,28,1)==0);
     }
   }
   const char *causes[] = {"MCP4728A1", "OLED", "MCP4728A1 + OLED"};
@@ -137,7 +137,7 @@ int main(void) {
     Screen_DrawI2CError(sources);
     assert(ssd1306_UpdateScreen()==0);
     assert(pixels(14,16,99,18)>0);
-    assert_text((128-strlen(cause)*7)/2,40,cause,7);
+    assert_text((128-strlen(cause)*7)/2,40,cause,7,0);
     assert(pixels(0,0,128,14)==0 && pixels(0,52,128,12)==0);
   }
   writes=0;
