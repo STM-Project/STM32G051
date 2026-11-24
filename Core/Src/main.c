@@ -34,6 +34,7 @@
 #include "screens.h"
 #include "radio.h"
 #include "pcf8575.h"
+#include "mcp4728.h"
 #include <stdio.h>
 
 /* USER CODE END Includes */
@@ -46,6 +47,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DAC_DISPLAY_REFRESH_MS 125U
+#define DAC_RETRY_MS 250U
 #define FACE_FRAME_MS 250U
 #define FACE_DURATION_MS 10000U
 #define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
@@ -60,7 +62,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint16_t dac_value[2];
+static uint16_t dac_value[DAC_VALUE_COUNT];
+static uint8_t external_dac_pending = (1U << MCP4728_CHANNEL_COUNT) - 1U;
+static uint8_t external_dac_error;
+static uint32_t external_dac_retry_tick;
 static uint8_t selected_dac;
 static uint8_t oled_ready;
 static uint16_t oled_address;
@@ -137,7 +142,8 @@ static void DrawDisplay(void)
 {
   SSD1306_DispBK(oled_address, NoInvert);
   switch (screen) {
-    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac, pulse_hz); break;
+    case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac,
+                                       pulse_hz, external_dac_error); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
     case SCREEN_FACE: Screen_DrawFace(face_frame); break;
@@ -146,21 +152,58 @@ static void DrawDisplay(void)
   }
 }
 
+static void SetSelectedDAC(uint16_t value)
+{
+  dac_value[selected_dac] = value;
+  if (selected_dac < INTERNAL_DAC_COUNT) {
+    if (Analog_SetDAC(selected_dac, value) != HAL_OK)
+      Error_Handler();
+  } else {
+    external_dac_pending |= 1U << (selected_dac - INTERNAL_DAC_COUNT);
+  }
+}
+
+static void ServiceExternalDAC(uint32_t now)
+{
+  if (external_dac_pending == 0U ||
+      (external_dac_error && (uint32_t)(now - external_dac_retry_tick) < DAC_RETRY_MS))
+    return;
+
+  for (uint8_t channel = 0; channel < MCP4728_CHANNEL_COUNT; ++channel) {
+    uint8_t mask = 1U << channel;
+    if ((external_dac_pending & mask) == 0U)
+      continue;
+    if (MCP4728_WriteChannel(channel, dac_value[INTERNAL_DAC_COUNT + channel]) == HAL_OK) {
+      external_dac_pending &= ~mask;
+    } else {
+      external_dac_retry_tick = HAL_GetTick();
+      if (!external_dac_error) {
+        external_dac_error = 1U;
+        dac_display_dirty = 1U;
+      }
+      return;
+    }
+  }
+  if (external_dac_error) {
+    external_dac_error = 0U;
+    dac_display_dirty = 1U;
+  }
+}
+
 static void ServiceKeys(void)
 {
   uint8_t keys = INPUT_PollPress((screen == SCREEN_ADC || screen == SCREEN_PCF) ? 3U : 0U);
   if (keys == 0) return;
   if (screen == SCREEN_ADC && (keys == 1U || keys == 2U)) {
-    uint16_t *value = &dac_value[selected_dac];
-    if (keys == 1U && *value < 4095U) {
-      ++*value;
-    } else if (keys == 2U && *value > 0U) {
-      --*value;
+    uint16_t value = dac_value[selected_dac];
+    if (keys == 1U && value < 4095U) {
+      ++value;
+    } else if (keys == 2U && value > 0U) {
+      --value;
     } else {
       return;
     }
-    if (Analog_SetDAC(selected_dac, *value) != HAL_OK)
-      Error_Handler();
+    SetSelectedDAC(value);
     dac_display_dirty = 1;
     return;
   }
@@ -188,12 +231,10 @@ static void ServiceKeys(void)
   if (screen == SCREEN_FM) { Radio_Key(keys); return; }
   if (screen != SCREEN_ADC) return;
   switch (keys) {
-    case 4: selected_dac ^= 1; break;
-    case 8: dac_value[selected_dac] = 0; break;
+    case 4: selected_dac = (selected_dac + 1U) % DAC_VALUE_COUNT; break;
+    case 8: SetSelectedDAC(0U); break;
     default: return;
   }
-  if (Analog_SetDAC(selected_dac, dac_value[selected_dac]) != HAL_OK)
-    Error_Handler();
 }
 
 
@@ -235,6 +276,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   uint8_t calibration_failed = Analog_Init();
   HAL_Delay(200);
+  ServiceExternalDAC(HAL_GetTick());
   OLED_Init();
   if (oled_ready && calibration_failed) {
     SSD1306_DispBK(oled_address, NoInvert);
@@ -260,6 +302,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     ServiceKeys();
     uint32_t now = HAL_GetTick();
+    ServiceExternalDAC(now);
     if (Pulse_ReadHz(pulse_hz)) {
       adc_valid = Analog_Read(adc_values);
       if (screen == SCREEN_ADC)

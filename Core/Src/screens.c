@@ -94,9 +94,26 @@ void Screen_DrawCalibrationWarning(uint8_t failed)
 
 
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
-                       const uint16_t dac[2], uint8_t selected, const uint32_t hz[2])
+                       const uint16_t dac[DAC_VALUE_COUNT], uint8_t selected,
+                       const uint32_t hz[2], uint8_t external_dac_error)
 {
   char line[18];
+  /* The text driver also clears two rows above each glyph. Draw bottom-up. */
+  for (uint8_t i = DAC_VALUE_COUNT; i > 0U;) {
+    --i;
+    uint8_t x = (i % 3U) * 42U;
+    uint8_t y = 42U + (i / 3U) * 11U;
+    snprintf(line, sizeof(line), "%4u", (unsigned)dac[i]);
+    SSD1306_Txt(x, y, line, Font_7x10, NoInvert);
+  }
+  SSD1306_rect((selected % 3U) * 42U, 52U + (selected / 3U) * 11U,
+               4U * Font_7x10.FontWidth, 1U);
+
+  snprintf(line, sizeof(line), "PB3:%lu Hz", (unsigned long)hz[1]);
+  SSD1306_Txt(0, 32, line, Font_7x10, NoInvert);
+  snprintf(line, sizeof(line), "PA0:%lu Hz", (unsigned long)hz[0]);
+  SSD1306_Txt(0, 22, line, Font_7x10, NoInvert);
+
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
     if (valid)
       snprintf(line, sizeof(line), "%4u", (unsigned)adc[i]);
@@ -104,17 +121,8 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
       snprintf(line, sizeof(line), "----");
     SSD1306_Txt((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10, NoInvert);
   }
-
-  snprintf(line, sizeof(line), "PA0:%lu Hz", (unsigned long)hz[0]);
-  SSD1306_Txt(0, 24, line, Font_7x10, NoInvert);
-  snprintf(line, sizeof(line), "PB3:%lu Hz", (unsigned long)hz[1]);
-  SSD1306_Txt(0, 34, line, Font_7x10, NoInvert);
-
-  for (uint8_t i = 0; i < 2; ++i) {
-    snprintf(line, sizeof(line), "%cDAC%u:%4u", selected == i ? '>' : ' ',
-             (unsigned)(i + 1U), (unsigned)dac[i]);
-    SSD1306_Txt(0, 44U + i * 10U, line, Font_7x10, NoInvert);
-  }
+  if (external_dac_error)
+    SSD1306_Txt(119, 12, "!", Font_7x10, NoInvert);
 }
 /* USER CODE END MEASUREMENTS */
 

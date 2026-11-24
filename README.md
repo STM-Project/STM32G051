@@ -6,9 +6,9 @@
 |---|---|
 | pin1: zwiększ wybrany DAC | PB7 |
 | pin2: zmniejsz wybrany DAC | PC14 |
-| pin3: wybierz DAC1/DAC2 | PC15 |
+| pin3: wybierz następny z sześciu DAC | PC15 |
 | pin4: wyzeruj wybrany DAC | PF2-NRST |
-| OLED I2C2 SCL / SDA | PA11 / PA12, AF6 |
+| OLED i MCP4728A1 I2C2 SCL / SDA | PA11 / PA12, AF6 |
 | ADC1 IN1, IN2, IN3, IN6, IN7 | PA1, PA2, PA3, PA6, PA7 |
 | DAC1 OUT1 / OUT2 | PA4 / PA5 |
 | SWDIO / SWCLK | PA13 / PA14 |
@@ -24,9 +24,12 @@ OLED SSD1306 128×64 korzysta z przeniesionych sterownika i fontów G031.
 Wykrywany jest pierwszy ekran pod adresem 7-bitowym 0x3C lub 0x3D
 (0x78/0x7A w HAL). Potrzebne są zewnętrzne pull-up na SDA/SCL do 3,3 V.
 Magistrala pracuje około 100 kHz przy PCLK=16 MHz. Brak OLED przy starcie
-nie zatrzymuje ADC, DAC i klawiatury. Ekran pokazuje surowe pomiary pięciu
-ADC w dwóch kolumnach (trzy wiersze) i odświeża je co 500 ms. Pokazuje też nastawy
-DAC1/DAC2 w osobnych wierszach poniżej; znak `>` oznacza wybrane wyjście.
+nie zatrzymuje ADC, DAC i klawiatury. OLED pokazuje sześć pomiarów ADC,
+częstotliwości PA0/PB3 i sześć nastaw DAC. Nastawy DAC zajmują dwie linie
+po trzy liczby bez etykiet. Kolejność od lewej do prawej: u góry PA4, PA5,
+MCP4728 A, u dołu MCP4728 B, C, D. Pozioma kreska pod liczbą wskazuje
+wybrane wyjście. Symbol `!` z prawej strony drugiego wiersza ADC sygnalizuje
+błąd zapisu MCP4728. Widoczne liczby są nastawami w zakresie 0–4095.
 
 ## ADC i DAC
 
@@ -60,7 +63,8 @@ wyzwalania. Startują od zera. Jedno naciśnięcie pin1/pin2 zmienia wybrany
 DAC o 1, z ograniczeniem 0–4095. Jeśli klawisz pozostaje wciśnięty przez
 sekundę po pierwszej zmianie, kolejne kroki o 1 są wykonywane co około 5 ms,
 zależnie od czasu obsługi OLED. Zwolnienie klawisza kończy powtarzanie.
-Pin3 przełącza kanał, pin4 zeruje wybrany kanał. Klawisze mają 8 ms
+Pin3 wybiera następny z sześciu kanałów (po D wraca do PA4).
+Pin4 zeruje wybrany kanał. Klawisze mają 8 ms
 eliminacji drgań i 40 ms na zebranie kombinacji. Krótki nacisk jest
 obsługiwany po zwolnieniu. Przed kolejną akcją zwolnij wszystkie klawisze.
 Powtarzanie działa tylko dla pin1/pin2 na ekranie ADC/DAC. Na ekranie FM
@@ -71,6 +75,25 @@ Nie podłączaj napięć przekraczających dopuszczalne parametry mikrokontroler
 
 PA0 i PB3 mają ustawione funkcje alternatywne z rysunku, ale timery nie są
 uruchamiane — nie określono parametrów przebiegów ani trybu ich pracy.
+
+### MCP4728A1-E/UN
+
+Podłącz SCL do PA11, SDA do PA12 i połącz masy. Zasil układ napięciem
+3,3 V, użyj podciągania magistrali do 3,3 V i podłącz LDAC do GND.
+MCP4728A1 ma fabryczny adres 7-bitowy `0x61` (`0xC2` w HAL)
+i współdzieli I2C2 z OLED i PCF8575.
+
+`MCP4728_WriteChannel(channel, value)` przyjmuje numer kanału A–D (0–3)
+i 12-bitowy kod. Wysyła trzy bajty w jednej transakcji I²C: polecenie
+Multi-Write `0x40 | (channel << 1)` z UDAC=0, starsze cztery bity kodu
+i młodszy bajt kodu. Zapis dotyczy jednego kanału i od razu aktualizuje
+wyjście. Referencją jest VDD, wzmocnienie wynosi 1, a wyjście jest aktywne.
+Nominalne napięcie wynosi `VDD * kod / 4096`.
+
+Po starcie firmware wpisuje zera do rejestrów czterech wyjść.
+Do pierwszego zapisu obowiązują ustawienia startowe układu zapisane w EEPROM.
+Zmiany nastaw trafiają do rejestrów ulotnych. Po błędzie I²C aplikacja
+ponawia zapis aktualnej nastawy po 250 ms i nadal obsługuje pozostałe peryferia.
 
 ## Wybór ekranów kombinacjami klawiszy
 
@@ -135,10 +158,12 @@ kompilator C do testu klawiszy. W przygotowanym środowisku:
 ```sh
 cd /workspace/STM32G051
 export PATH=/workspace/stm32-cloud/toolchain/usr/bin:$PATH
+export C_INCLUDE_PATH=/workspace/stm32-cloud/toolchain/usr/include/newlib/nano${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}
 make -j4
 python3 tests/test_keys.py
 python3 tests/test_radio.py
 python3 tests/test_screens.py
+python3 tests/test_mcp4728.py
 python3 tests/test_adc_dma.py
 python3 tests/test_regeneration.py
 ```

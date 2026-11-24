@@ -32,6 +32,7 @@ void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
     driver.write_text(instrumented)
     shutil.copy(root/'Core/Inc/radio.h',out/'radio.h')
     shutil.copy(root/'Core/Inc/analog.h',out/'analog.h')
+    shutil.copy(root/'Core/Inc/mcp4728.h',out/'mcp4728.h')
     shutil.copy(root/'Core/Inc/face_frames.h',out/'face_frames.h')
     (out/'main.h').write_text('''#ifndef MOCK_MAIN_H
 #define MOCK_MAIN_H
@@ -89,17 +90,24 @@ static unsigned pixels(unsigned x0, unsigned y0, unsigned w, unsigned h) {
   return count;
 }
 int main(void) {
-  uint16_t adc[ADC_INPUT_COUNT]={111,222,333,666,777,4095}, dac[2]={1234,4095};
+  uint16_t adc[ADC_INPUT_COUNT]={111,222,333,666,777,4095};
+  uint16_t dac[DAC_VALUE_COUNT]={0,4095,1234,789,2345,67};
   uint32_t hz[2]={1234,4294967294U};
-  SSD1306_DispBK(address,NoInvert);
-  Screen_DrawAnalog(adc,1,dac,0,hz); ssd1306_UpdateScreen();
-  for(unsigned i=0;i<ADC_INPUT_COUNT;i++) assert(pixels((i%3)*42,(i/3)*12,28,10)>0);
-  assert(pixels(0,24,126,10)>0 && pixels(0,34,126,10)>0);
-  assert(pixels(7,44,63,10)>0 && pixels(7,54,63,10)>0); /* both DAC rows */
-  assert(pixels(0,44,7,10)>0 && pixels(0,54,7,10)==0); /* selected DAC1 */
-  SSD1306_DispBK(address,NoInvert);
-  Screen_DrawAnalog(adc,0,dac,1,hz); ssd1306_UpdateScreen();
-  assert(pixels(0,44,7,10)==0 && pixels(0,54,7,10)>0); /* selected DAC2 */
+  for (unsigned selected=0; selected<DAC_VALUE_COUNT; ++selected) {
+    SSD1306_DispBK(address,NoInvert);
+    Screen_DrawAnalog(adc,1,dac,selected,hz,selected==5);
+    ssd1306_UpdateScreen();
+    for (unsigned i=0; i<ADC_INPUT_COUNT; ++i)
+      assert(pixels((i%3)*42,(i/3)*12,28,10)>0);
+    assert(pixels(0,22,126,10)>0 && pixels(0,32,126,10)>0);
+    assert((pixels(119,12,7,10)>0)==(selected==5));
+    for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
+      unsigned x=(i%3)*42, y=42+(i/3)*11;
+      assert(pixels(x,y,28,10)>0);
+      assert(pixels(x+28,y,14,11)==0);
+      assert(pixels(x,y+10,28,1)==(i==selected ? 28 : 0));
+    }
+  }
   /* A glyph ending exactly at the right/bottom edges is valid. */
   SSD1306_DispBK(address,NoInvert);
   ssd1306_SetCursor(121,54);

@@ -14,5 +14,6 @@ enum {
 uint8_t Analog_Init(void);
 /* USER CODE END CALIBRATION_STATUS */
 uint8_t Analog_Read(uint16_t values[ADC_INPUT_COUNT]);
+#define INTERNAL_DAC_COUNT 2U
 HAL_StatusTypeDef Analog_SetDAC(uint8_t channel, uint16_t value);
 #endif
