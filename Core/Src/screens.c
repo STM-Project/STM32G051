@@ -134,8 +134,9 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
     uint8_t width = digits * Font_7x10.FontWidth;
     uint8_t x = (i % 3U) * 42U + margin + 4U * Font_7x10.FontWidth - width;
     if (i == selected) {
+      /* The last two rows of each digit already form the bottom margin. */
       SSD1306_rect(x - margin, y - margin, width + 2U * margin,
-                   Font_7x10.FontHeight + 2U * margin);
+                   Font_7x10.FontHeight + margin);
       ssd1306_InvertColors();
     }
     SSD1306_TxtCompact(x, y, line, Font_7x10);

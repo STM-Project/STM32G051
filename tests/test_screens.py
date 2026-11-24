@@ -129,7 +129,8 @@ int main(void) {
       unsigned margin=i==selected ? 2 : 0;
       assert_text(x,y,line,7,i==selected);
       assert(pixels(x-2,y-2,width+4,2)==margin*(width+4));
-      assert(pixels(x-2,y+10,width+4,2)==margin*(width+4));
+      assert(pixels(x-2,y+8,width+4,2)==margin*(width+4));
+      assert(pixels(x-2,y+10,width+4,2)==0);
       assert(pixels(x-2,y,2,10)==margin*10);
       assert(pixels(x+width,y,2,10)==margin*10);
       assert(pixels(cell,y-2,x-2-cell,14)==0);
