@@ -151,12 +151,13 @@ int INPUT_IsAnyPress(INPUT_PIN *in, int size){
 
 /* Nonblocking events: bit 0..3 = pin1..pin4. Only enabled single
  * keys repeat, and only while the original key stays down on its own. */
-uint8_t INPUT_PollPress(uint8_t repeat_mask)
+uint8_t INPUT_PollPress(uint8_t repeat_mask, uint32_t *repeat_held_ms)
 {
   static uint8_t candidate, stable, armed = 1, collecting, pending;
   static uint8_t repeat_key;
   static uint32_t changed, started, last_event;
   static uint32_t repeat_delay;
+  *repeat_held_ms = 0U;
   uint8_t raw = 0;
   const INPUT_PIN pins[4] = {
     {GPIOB, GPIO_PIN_7}, {GPIOC, GPIO_PIN_14},
@@ -196,6 +197,7 @@ uint8_t INPUT_PollPress(uint8_t repeat_mask)
       (uint32_t)(now - last_event) >= repeat_delay) {
     last_event = now;
     repeat_delay = KEY_REPEAT_STEP_MS;
+    *repeat_held_ms = now - started;
     return repeat_key;
   }
   return 0;

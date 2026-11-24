@@ -47,6 +47,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DAC_DISPLAY_REFRESH_MS 125U
+#define DAC_FAST_HOLD_MS 5000U
+#define DAC_MAX_VALUE 4095U
 #define DAC_RETRY_MS 250U
 #define OLED_RETRY_MS 250U
 #define I2C_WARNING_MS 2000U
@@ -255,17 +257,20 @@ static void ServiceDisplay(uint32_t now)
 
 static void ServiceKeys(void)
 {
-  uint8_t keys = INPUT_PollPress((screen == SCREEN_ADC || screen == SCREEN_PCF) ? 3U : 0U);
+  uint32_t repeat_held_ms;
+  uint8_t repeat_mask = (screen == SCREEN_ADC || screen == SCREEN_PCF) ? 3U : 0U;
+  uint8_t keys = INPUT_PollPress(repeat_mask, &repeat_held_ms);
   if (keys == 0) return;
   if (screen == SCREEN_ADC && (keys == 1U || keys == 2U)) {
-    uint16_t value = dac_value[selected_dac];
-    if (keys == 1U && value < 4095U) {
-      ++value;
-    } else if (keys == 2U && value > 0U) {
-      --value;
-    } else {
+    uint16_t step = repeat_held_ms > DAC_FAST_HOLD_MS ? 10U : 1U;
+    uint16_t current = dac_value[selected_dac];
+    uint16_t value;
+    if (keys == 1U)
+      value = current > DAC_MAX_VALUE - step ? DAC_MAX_VALUE : current + step;
+    else
+      value = current < step ? 0U : current - step;
+    if (value == current)
       return;
-    }
     SetSelectedDAC(value);
     dac_display_dirty = 1;
     return;

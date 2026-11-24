@@ -70,7 +70,9 @@ Dwa wyjścia DAC: 12 bitów, bufor wyjściowy włączony, bez zewnętrznego
 wyzwalania. Startują od zera. Jedno naciśnięcie pin1/pin2 zmienia wybrany
 DAC o 1, z ograniczeniem 0–4095. Jeśli klawisz pozostaje wciśnięty przez
 sekundę po pierwszej zmianie, kolejne kroki o 1 są wykonywane co około 5 ms,
-zależnie od czasu obsługi OLED. Zwolnienie klawisza kończy powtarzanie.
+zależnie od czasu obsługi OLED. Po przytrzymaniu przycisku przez ponad 5 s
+krok DAC wzrasta do 10, z ograniczeniem do 0–4095. Zwolnienie przycisku
+kończy powtarzanie.
 Pin3 wybiera następny z sześciu kanałów (po D wraca do PA4).
 Pin4 zeruje wybrany kanał. Klawisze mają 8 ms
 eliminacji drgań i 40 ms na zebranie kombinacji. Krótki nacisk jest

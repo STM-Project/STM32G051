@@ -39,7 +39,8 @@ extern "C" {
 void MX_GPIO_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-uint8_t INPUT_PollPress(uint8_t repeat_mask);
+/* The hold duration is zero for events other than a repeat. */
+uint8_t INPUT_PollPress(uint8_t repeat_mask, uint32_t *repeat_held_ms);
 
 
 int  		MX_GPIO_IsPress	 		(GPIO_TypeDef const *GPIOx, uint16_t GPIO_Pin);

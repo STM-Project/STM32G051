@@ -62,8 +62,9 @@ int HAL_GPIO_ReadPin(const GPIO_TypeDef *p, uint16_t pin) {
   return (keys & mask) ? 0 : 1;
 }
 static uint8_t repeat_mask;
+static uint32_t repeat_held_ms;
 static uint8_t poll(uint32_t t, uint8_t k) {
-  tick = t; keys = k; return INPUT_PollPress(repeat_mask);
+  tick = t; keys = k; return INPUT_PollPress(repeat_mask, &repeat_held_ms);
 }
 int main(void) {
   assert(poll(0,0)==0);
@@ -112,6 +113,14 @@ int main(void) {
   assert(poll(UINT32_MAX-55,1)==0); assert(poll(UINT32_MAX-47,1)==0);
   assert(poll(UINT32_MAX-7,1)==1);
   assert(poll(991,1)==0); assert(poll(992,1)==1); assert(poll(997,1)==1);
+  assert(poll(4952,1)==1 && repeat_held_ms==5000U);
+  assert(poll(4957,1)==1 && repeat_held_ms==5005U);
+  assert(poll(4962,0)==0 && repeat_held_ms==0U);
+  assert(poll(4970,0)==0);
+  assert(poll(5000,2)==0); assert(poll(5008,2)==0);
+  assert(poll(5048,2)==2 && repeat_held_ms==0U);
+  assert(poll(10008,2)==2 && repeat_held_ms==5000U);
+  assert(poll(10013,2)==2 && repeat_held_ms==5005U);
   puts("PASS: pins, debounce, rapid taps, chords, DAC-only repeat and tick wrap");
 }
 ''')
