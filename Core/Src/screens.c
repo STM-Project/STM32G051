@@ -108,11 +108,14 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
   if (external_dac_error)
     SSD1306_TxtCompact(119, 12, "!", Font_7x10);
 
-  /* The final column of every digit is blank. Two 10-digit values fit. */
-  const FontDef frequency_font = {6U, Font_7x10.FontHeight, Font_7x10.data};
   for (uint8_t i = 0; i < 2U; ++i) {
-    snprintf(line, sizeof(line), "%lu", (unsigned long)hz[i]);
-    SSD1306_TxtCompact(i * (SSD1306_WIDTH / 2U), 26U, line, frequency_font);
+    uint8_t x = i * (SSD1306_WIDTH / 2U);
+    if (hz[i] > 99999U)
+      snprintf(line, sizeof(line), ">99999");
+    else
+      snprintf(line, sizeof(line), " %5lu", (unsigned long)hz[i]);
+    SSD1306_TxtCompact(x, 26U, line, Font_7x10);
+    SSD1306_TxtCompact(x + 6U * Font_7x10.FontWidth + 1U, 26U, "Hz", Font_7x10);
   }
 
   for (uint8_t i = 0; i < DAC_VALUE_COUNT; ++i) {

@@ -100,19 +100,24 @@ static void assert_text(unsigned x0, unsigned y0, const char *text, unsigned wid
 int main(void) {
   uint16_t adc[ADC_INPUT_COUNT]={111,222,333,666,777,4095};
   uint16_t dac[DAC_VALUE_COUNT]={0,4095,1234,789,2345,67};
-  uint32_t hz[2]={4294967295U,4294967294U};
+  const uint32_t hz[][2]={{1234,25000},{0,99999},{100000,UINT32_MAX}};
+  const char *labels[][2]={{"  1234"," 25000"},{"     0"," 99999"},
+                           {">99999",">99999"}};
   for (unsigned selected=0; selected<DAC_VALUE_COUNT; ++selected) {
     SSD1306_DispBK(address,NoInvert);
-    Screen_DrawAnalog(adc,1,dac,selected,hz,selected==5);
+    Screen_DrawAnalog(adc,1,dac,selected,hz[selected%3],selected==5);
     ssd1306_UpdateScreen();
     char line[18];
     for (unsigned i=0; i<ADC_INPUT_COUNT; ++i) {
       snprintf(line,sizeof(line),"%4u",(unsigned)adc[i]);
       assert_text((i%3)*42,(i/3)*12,line,7);
     }
-    assert_text(0,26,"4294967295",6);
-    assert_text(64,26,"4294967294",6);
-    assert(pixels(60,26,4,10)==0 && pixels(124,26,4,10)==0);
+    assert_text(0,26,labels[selected%3][0],7);
+    assert_text(64,26,labels[selected%3][1],7);
+    assert(pixels(42,26,1,10)==0 && pixels(106,26,1,10)==0);
+    assert_text(43,26,"Hz",7);
+    assert_text(107,26,"Hz",7);
+    assert(pixels(57,26,7,10)==0 && pixels(121,26,7,10)==0);
     assert((pixels(119,12,7,10)>0)==(selected==5));
     for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
       unsigned x=(i%3)*42, y=40+(i/3)*12;

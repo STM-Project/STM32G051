@@ -25,8 +25,9 @@ Wykrywany jest pierwszy ekran pod adresem 7-bitowym 0x3C lub 0x3D
 (0x78/0x7A w HAL). Potrzebne są zewnętrzne pull-up na SDA/SCL do 3,3 V.
 Magistrala pracuje około 100 kHz przy PCLK=16 MHz. Brak OLED przy starcie
 nie zatrzymuje ADC, DAC i klawiatury. OLED pokazuje sześć pomiarów ADC,
-dwie częstotliwości w jednym wierszu (PA0 po lewej, PB3 po prawej, obie w Hz)
-i sześć nastaw DAC. Nastawy DAC zajmują dwie linie
+dwie częstotliwości w jednym wierszu (PA0 po lewej, PB3 po prawej)
+i sześć nastaw DAC. Każde pole częstotliwości mieści pięć cyfr i dopisek
+`Hz`. Wynik powyżej zakresu jest wyświetlany jako `>99999Hz`. Nastawy DAC zajmują dwie linie
 po trzy liczby bez etykiet. Kolejność od lewej do prawej: u góry PA4, PA5,
 MCP4728 A, u dołu MCP4728 B, C, D. Pozioma kreska pod liczbą wskazuje
 wybrane wyjście. Symbol `!` z prawej strony drugiego wiersza ADC sygnalizuje
