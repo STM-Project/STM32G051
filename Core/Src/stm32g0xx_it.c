@@ -42,9 +42,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-#define PULSE_GATE_MS 500U
+#define PULSE_GATE_MS 3000U
 static volatile uint32_t pb3_upper_count;
-static volatile uint32_t pulse_hz[2];
+static volatile uint32_t pulse_edges[2];
+static volatile uint32_t pulse_elapsed_ms;
 static volatile uint8_t pulse_ready;
 static uint32_t pulse_gate_start;
 static uint32_t previous_pa0_edges;
@@ -133,24 +134,30 @@ uint8_t Pulse_ReadHz(uint32_t hz[2])
   if (!pulse_ready) return 0;
   uint32_t primask = __get_PRIMASK();
   __disable_irq();
-  hz[0] = pulse_hz[0];
-  hz[1] = pulse_hz[1];
+  uint32_t pa0_edges = pulse_edges[0];
+  uint32_t pb3_edges = pulse_edges[1];
+  uint32_t elapsed_ms = pulse_elapsed_ms;
   pulse_ready = 0;
   __set_PRIMASK(primask);
+
+  hz[0] = ((uint64_t)pa0_edges * 1000U + elapsed_ms / 2U) / elapsed_ms;
+  hz[1] = ((uint64_t)pb3_edges * 1000U + elapsed_ms / 2U) / elapsed_ms;
   return 1;
 }
 
 static void Pulse_Sample(void)
 {
   uint32_t now = HAL_GetTick();
-  if (!pulse_running || (uint32_t)(now - pulse_gate_start) < PULSE_GATE_MS)
+  uint32_t elapsed_ms = now - pulse_gate_start;
+  if (!pulse_running || elapsed_ms < PULSE_GATE_MS)
     return;
 
-  pulse_gate_start += PULSE_GATE_MS;
+  pulse_gate_start = now;
   uint32_t pa0 = TIM2->CNT;
   uint32_t pb3 = ReadPB3Counter();
-  pulse_hz[0] = (pa0 - previous_pa0_edges) * 2U;
-  pulse_hz[1] = (pb3 - previous_pb3_edges) * 2U;
+  pulse_edges[0] = pa0 - previous_pa0_edges;
+  pulse_edges[1] = pb3 - previous_pb3_edges;
+  pulse_elapsed_ms = elapsed_ms;
   previous_pa0_edges = pa0;
   previous_pb3_edges = pb3;
   pulse_ready = 1;

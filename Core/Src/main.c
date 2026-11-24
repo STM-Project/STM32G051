@@ -46,6 +46,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_DISPLAY_REFRESH_MS 500U
 #define DAC_DISPLAY_REFRESH_MS 125U
 #define DAC_FAST_HOLD_MS 5000U
 #define DAC_MAX_VALUE 4095U
@@ -370,6 +371,7 @@ int main(void)
       OLED_Failed();
   }
   Pulse_Init();
+  uint32_t adc_tick = HAL_GetTick();
   adc_valid = Analog_Read(adc_values);
   display_dirty = 1;
 
@@ -386,11 +388,15 @@ int main(void)
     ServiceKeys();
     uint32_t now = HAL_GetTick();
     ServiceExternalDAC(now);
-    if (Pulse_ReadHz(pulse_hz)) {
+    uint8_t frequency_updated = Pulse_ReadHz(pulse_hz);
+    if ((uint32_t)(now - adc_tick) >= ADC_DISPLAY_REFRESH_MS) {
+      adc_tick = now;
       adc_valid = Analog_Read(adc_values);
       if (screen == SCREEN_ADC)
         display_dirty = 1;
     }
+    if (frequency_updated && screen == SCREEN_ADC)
+      display_dirty = 1;
     if (screen == SCREEN_FACE) {
       uint32_t elapsed = now - face_started;
       uint8_t frame = (elapsed < FACE_DURATION_MS ? elapsed : FACE_DURATION_MS) / FACE_FRAME_MS;

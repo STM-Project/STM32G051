@@ -12,7 +12,7 @@
 | ADC1 IN1, IN2, IN3, IN6, IN7 | PA1, PA2, PA3, PA6, PA7 |
 | DAC1 OUT1 / OUT2 | PA4 / PA5 |
 | SWDIO / SWCLK | PA13 / PA14 |
-| zarezerwowane TIM2_CH1 / TIM3_CH2 | PA0 AF2 / PB3 AF1 |
+| Pomiar impulsów TIM2_CH1 / TIM1_CH2 | PA0 AF2 / PB3 AF1 |
 
 Przyciski zwierają wejścia do GND (wewnętrzne pull-up). **PF2 wymaga
 ustawienia opcji NRST_MODE=GPIO (wartość 2) w STM32CubeProgrammer.** Firmware
@@ -86,8 +86,10 @@ Nominalnie napięcie odpowiada `kod / 4095 * VREF+`; uwzględnij rzeczywiste
 VREF+, obciążenie i ograniczenia bufora DAC. ADC pracuje w zakresie 0–VREF+.
 Nie podłączaj napięć przekraczających dopuszczalne parametry mikrokontrolera.
 
-PA0 i PB3 mają ustawione funkcje alternatywne z rysunku, ale timery nie są
-uruchamiane — nie określono parametrów przebiegów ani trybu ich pracy.
+PA0 (TIM2) i PB3 (TIM1) zliczają zbocza narastające niezależnie. Firmware
+aktualizuje pomiar co około 3 s. Dzieli liczbę impulsów przez upływ czasu
+zmierzony przez SysTick i zaokrągla wynik do pełnych Hz. Dokładność
+bezwzględna zależy od tolerancji wewnętrznego oscylatora HSI.
 
 ### MCP4728A1-E/UN
 
@@ -220,9 +222,9 @@ Po generacji wykonaj Clean i przebuduj projekt w CubeIDE. Test
 `test_regeneration.py` sprawdza parowanie sekcji, pojedyncze definicje IRQ
 i uruchamia test klawiszy po modelowej regeneracji gpio.c/gpio.h zachowującej
 wyłącznie USER CODE. Nie wykonuje samego CubeMX; rzeczywistą regenerację
-należy potwierdzić lokalnie w IDE. Przesłana konfiguracja nie aktywuje TIM2
-ani TIM3; timery nie są uruchamiane przez aplikację. Rezerwacja PA0/PB3
-jako funkcji alternatywnych z rysunku pozostaje w USER CODE MspInit 1.
+należy potwierdzić lokalnie w IDE. Aplikacja konfiguruje pomiar na PA0
+(TIM2) i PB3 (TIM1)
+w funkcji `Pulse_Init` w sekcji USER CODE pliku `stm32g0xx_it.c`.
 
 Do weryfikacji na sprzęcie: option bytes PF2, odczyt wszystkich klawiszy,
 OLED i pull-up I2C, napięcia ADC na pięciu kanałach, oba napięcia DAC oraz SWD.
