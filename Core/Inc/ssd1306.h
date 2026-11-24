@@ -83,6 +83,8 @@ void ssd1306_InvertColors(void);
 
 void ssd1306_SetDevAddr(uint16_t addr);
 void SSD1306_Txt(uint8_t x, uint8_t y, const char* str, FontDef Font, SSD1306_INVERT inv);
+/* Draw text without touching the rows above or below the glyphs. */
+void SSD1306_TxtCompact(uint8_t x, uint8_t y, const char *text, FontDef font);
 void ssd1306_Pixel(uint8_t x, uint8_t y);
 void SSD1306_TxtMiddBK(uint8_t x,uint8_t y,  uint8_t widthBk,uint8_t heightBk,  const char* str,FontDef Font,SSD1306_INVERT inv);
 void SSD1306_TxtMidd(uint8_t x,uint8_t y,  const char* str,FontDef Font,SSD1306_INVERT inv);

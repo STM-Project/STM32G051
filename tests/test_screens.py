@@ -89,21 +89,35 @@ static unsigned pixels(unsigned x0, unsigned y0, unsigned w, unsigned h) {
     count += (frame[(y/8)*128+x] >> (y%8)) & 1;
   return count;
 }
+static void assert_text(unsigned x0, unsigned y0, const char *text, unsigned width) {
+  for (; *text; ++text, x0 += width) {
+    const uint16_t *glyph = Font_7x10.data + (*text - ' ') * Font_7x10.FontHeight;
+    for (unsigned y=0; y<Font_7x10.FontHeight; ++y)
+      for (unsigned x=0; x<width; ++x)
+        assert(pixels(x0+x,y0+y,1,1) == ((glyph[y] >> (15-x)) & 1U));
+  }
+}
 int main(void) {
   uint16_t adc[ADC_INPUT_COUNT]={111,222,333,666,777,4095};
   uint16_t dac[DAC_VALUE_COUNT]={0,4095,1234,789,2345,67};
-  uint32_t hz[2]={1234,4294967294U};
+  uint32_t hz[2]={4294967295U,4294967294U};
   for (unsigned selected=0; selected<DAC_VALUE_COUNT; ++selected) {
     SSD1306_DispBK(address,NoInvert);
     Screen_DrawAnalog(adc,1,dac,selected,hz,selected==5);
     ssd1306_UpdateScreen();
-    for (unsigned i=0; i<ADC_INPUT_COUNT; ++i)
-      assert(pixels((i%3)*42,(i/3)*12,28,10)>0);
-    assert(pixels(0,22,126,10)>0 && pixels(0,32,126,10)>0);
+    char line[18];
+    for (unsigned i=0; i<ADC_INPUT_COUNT; ++i) {
+      snprintf(line,sizeof(line),"%4u",(unsigned)adc[i]);
+      assert_text((i%3)*42,(i/3)*12,line,7);
+    }
+    assert_text(0,26,"4294967295",6);
+    assert_text(64,26,"4294967294",6);
+    assert(pixels(60,26,4,10)==0 && pixels(124,26,4,10)==0);
     assert((pixels(119,12,7,10)>0)==(selected==5));
     for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
-      unsigned x=(i%3)*42, y=42+(i/3)*11;
-      assert(pixels(x,y,28,10)>0);
+      unsigned x=(i%3)*42, y=40+(i/3)*12;
+      snprintf(line,sizeof(line),"%4u",(unsigned)dac[i]);
+      assert_text(x,y,line,7);
       assert(pixels(x+28,y,14,11)==0);
       assert(pixels(x,y+10,28,1)==(i==selected ? 28 : 0));
     }

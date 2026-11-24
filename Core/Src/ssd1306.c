@@ -164,7 +164,7 @@ void ssd1306_Pixel(uint8_t x, uint8_t y){
 //  Font    => Font to use
 //  color   => Black or White
 //
-char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
+static char WriteChar(char ch, FontDef Font, SSD1306_COLOR color, uint8_t padding)
 {
     uint32_t i, b, j;
 
@@ -177,7 +177,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
     }
 
     // Translate font to screenbuffer
-    if(SSD1306.CurrentY > 1)
+    if(padding && SSD1306.CurrentY > 1)
     {
         for (j = 0; j < Font.FontWidth; j++)
         {
@@ -185,7 +185,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
         	ssd1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY - 1), (SSD1306_COLOR) !color);
         }
     }
-    else if(SSD1306.CurrentY > 0)
+    else if(padding && SSD1306.CurrentY > 0)
     {
         for (j = 0; j < Font.FontWidth; j++)
         {
@@ -210,7 +210,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
         }
     }
 
-    if((SSD1306.CurrentY + Font.FontHeight) < (SSD1306_HEIGHT-1))
+    if(padding && (SSD1306.CurrentY + Font.FontHeight) < (SSD1306_HEIGHT-1))
     {
         for (j = 0; j < Font.FontWidth; j++)
         {
@@ -218,7 +218,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
         	ssd1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + Font.FontHeight + 1), (SSD1306_COLOR) !color);
         }
     }
-    else if((SSD1306.CurrentY + Font.FontHeight) < (SSD1306_HEIGHT-0))
+    else if(padding && (SSD1306.CurrentY + Font.FontHeight) < SSD1306_HEIGHT)
     {
         for (j = 0; j < Font.FontWidth; j++)
         {
@@ -231,6 +231,18 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
 
     // Return written char for validation
     return ch;
+}
+
+char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color)
+{
+    return WriteChar(ch, Font, color, 1U);
+}
+
+void SSD1306_TxtCompact(uint8_t x, uint8_t y, const char *text, FontDef font)
+{
+    ssd1306_SetCursor(x, y);
+    while (*text && WriteChar(*text, font, White, 0U) == *text)
+        ++text;
 }
 
 //

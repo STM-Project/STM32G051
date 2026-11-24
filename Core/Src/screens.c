@@ -98,31 +98,31 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
                        const uint32_t hz[2], uint8_t external_dac_error)
 {
   char line[18];
-  /* The text driver also clears two rows above each glyph. Draw bottom-up. */
-  for (uint8_t i = DAC_VALUE_COUNT; i > 0U;) {
-    --i;
-    uint8_t x = (i % 3U) * 42U;
-    uint8_t y = 42U + (i / 3U) * 11U;
-    snprintf(line, sizeof(line), "%4u", (unsigned)dac[i]);
-    SSD1306_Txt(x, y, line, Font_7x10, NoInvert);
-  }
-  SSD1306_rect((selected % 3U) * 42U, 52U + (selected / 3U) * 11U,
-               4U * Font_7x10.FontWidth, 1U);
-
-  snprintf(line, sizeof(line), "PB3:%lu Hz", (unsigned long)hz[1]);
-  SSD1306_Txt(0, 32, line, Font_7x10, NoInvert);
-  snprintf(line, sizeof(line), "PA0:%lu Hz", (unsigned long)hz[0]);
-  SSD1306_Txt(0, 22, line, Font_7x10, NoInvert);
-
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
     if (valid)
       snprintf(line, sizeof(line), "%4u", (unsigned)adc[i]);
     else
       snprintf(line, sizeof(line), "----");
-    SSD1306_Txt((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10, NoInvert);
+    SSD1306_TxtCompact((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10);
   }
   if (external_dac_error)
-    SSD1306_Txt(119, 12, "!", Font_7x10, NoInvert);
+    SSD1306_TxtCompact(119, 12, "!", Font_7x10);
+
+  /* The final column of every digit is blank. Two 10-digit values fit. */
+  const FontDef frequency_font = {6U, Font_7x10.FontHeight, Font_7x10.data};
+  for (uint8_t i = 0; i < 2U; ++i) {
+    snprintf(line, sizeof(line), "%lu", (unsigned long)hz[i]);
+    SSD1306_TxtCompact(i * (SSD1306_WIDTH / 2U), 26U, line, frequency_font);
+  }
+
+  for (uint8_t i = 0; i < DAC_VALUE_COUNT; ++i) {
+    uint8_t x = (i % 3U) * 42U;
+    uint8_t y = 40U + (i / 3U) * 12U;
+    snprintf(line, sizeof(line), "%4u", (unsigned)dac[i]);
+    SSD1306_TxtCompact(x, y, line, Font_7x10);
+  }
+  SSD1306_rect((selected % 3U) * 42U, 50U + (selected / 3U) * 12U,
+               4U * Font_7x10.FontWidth, 1U);
 }
 /* USER CODE END MEASUREMENTS */
 
