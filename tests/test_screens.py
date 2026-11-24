@@ -123,11 +123,17 @@ int main(void) {
     assert(pixels(57,26,7,10)==0 && pixels(121,26,7,10)==0);
     assert(pixels(119,12,7,10)==0);
     for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
-      unsigned x=(i%3)*42, y=40+(i/3)*12;
-      snprintf(line,sizeof(line),"%4u",(unsigned)dac[i]);
+      unsigned cell=(i%3)*42, y=38+(i/3)*14;
+      unsigned width=7*snprintf(line,sizeof(line),"%u",(unsigned)dac[i]);
+      unsigned x=cell+30-width;
+      unsigned margin=i==selected ? 2 : 0;
       assert_text(x,y,line,7,i==selected);
-      assert(pixels(x+28,y,14,11)==0);
-      assert(pixels(x,y+10,28,1)==0);
+      assert(pixels(x-2,y-2,width+4,2)==margin*(width+4));
+      assert(pixels(x-2,y+10,width+4,2)==margin*(width+4));
+      assert(pixels(x-2,y,2,10)==margin*10);
+      assert(pixels(x+width,y,2,10)==margin*10);
+      assert(pixels(cell,y-2,x-2-cell,14)==0);
+      assert(pixels(cell+32,y-2,10,14)==0);
     }
   }
   const char *causes[] = {"MCP4728A1", "OLED", "MCP4728A1 + OLED"};

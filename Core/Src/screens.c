@@ -127,12 +127,17 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
     SSD1306_TxtCompact(x + 6U * Font_7x10.FontWidth + 1U, 26U, "Hz", Font_7x10);
   }
 
+  const uint8_t margin = 2U;
   for (uint8_t i = 0; i < DAC_VALUE_COUNT; ++i) {
-    uint8_t x = (i % 3U) * 42U;
-    uint8_t y = 40U + (i / 3U) * 12U;
-    snprintf(line, sizeof(line), "%4u", (unsigned)dac[i]);
-    if (i == selected)
+    uint8_t y = 38U + (i / 3U) * 14U;
+    int digits = snprintf(line, sizeof(line), "%u", (unsigned)dac[i]);
+    uint8_t width = digits * Font_7x10.FontWidth;
+    uint8_t x = (i % 3U) * 42U + margin + 4U * Font_7x10.FontWidth - width;
+    if (i == selected) {
+      SSD1306_rect(x - margin, y - margin, width + 2U * margin,
+                   Font_7x10.FontHeight + 2U * margin);
       ssd1306_InvertColors();
+    }
     SSD1306_TxtCompact(x, y, line, Font_7x10);
     if (i == selected)
       ssd1306_InvertColors();
