@@ -48,6 +48,8 @@
 /* USER CODE BEGIN PD */
 #define DAC_DISPLAY_REFRESH_MS 125U
 #define DAC_RETRY_MS 250U
+#define OLED_RETRY_MS 250U
+#define I2C_WARNING_MS 2000U
 #define FACE_FRAME_MS 250U
 #define FACE_DURATION_MS 10000U
 #define OLED_PAGE_COUNT (SSD1306_HEIGHT / 8U)
@@ -69,6 +71,8 @@ static uint32_t external_dac_retry_tick;
 static uint8_t selected_dac;
 static uint8_t oled_ready;
 static uint16_t oled_address;
+static uint32_t oled_retry_tick;
+static uint8_t i2c_errors_pending;
 typedef enum { SCREEN_ADC, SCREEN_FM, SCREEN_DEMO0, SCREEN_DEMO1,
                SCREEN_DEMO2, SCREEN_DEMO3, SCREEN_INTRO, SCREEN_FACE, SCREEN_PCF } Screen;
 static Screen screen;
@@ -94,6 +98,13 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void OLED_Failed(void)
+{
+  oled_ready = 0U;
+  oled_retry_tick = HAL_GetTick();
+  i2c_errors_pending |= SCREEN_I2C_ERROR_OLED;
+}
+
 static void OLED_Init(void)
 {
   const uint16_t addresses[] = {0x78, 0x7A};
@@ -103,8 +114,10 @@ static void OLED_Init(void)
       ssd1306_SetDevAddr(oled_address);
       oled_ready = (ssd1306_Init() == 0);
       if (oled_ready) return;
+      i2c_errors_pending |= SCREEN_I2C_ERROR_OLED;
     }
   }
+  OLED_Failed();
 }
 
 static void ServicePCFKey(uint8_t keys)
@@ -143,7 +156,7 @@ static void DrawDisplay(void)
   SSD1306_DispBK(oled_address, NoInvert);
   switch (screen) {
     case SCREEN_ADC: Screen_DrawAnalog(adc_values, adc_valid, dac_value, selected_dac,
-                                       pulse_hz, external_dac_error); break;
+                                       pulse_hz); break;
     case SCREEN_FM: Screen_DrawRadio(); break;
     case SCREEN_INTRO: Screen_DrawRadioIntro(); break;
     case SCREEN_FACE: Screen_DrawFace(face_frame); break;
@@ -179,14 +192,64 @@ static void ServiceExternalDAC(uint32_t now)
       external_dac_retry_tick = HAL_GetTick();
       if (!external_dac_error) {
         external_dac_error = 1U;
-        dac_display_dirty = 1U;
+        i2c_errors_pending |= SCREEN_I2C_ERROR_MCP;
       }
       return;
     }
   }
-  if (external_dac_error) {
-    external_dac_error = 0U;
-    dac_display_dirty = 1U;
+  external_dac_error = 0U;
+}
+
+static void ServiceDisplay(uint32_t now)
+{
+  static uint8_t page = OLED_PAGE_COUNT;
+  static uint8_t frame_errors;
+  static uint8_t reported_errors;
+  static uint32_t warning_tick;
+  static uint32_t display_tick;
+
+  if (!oled_ready) {
+    if ((uint32_t)(now - oled_retry_tick) < OLED_RETRY_MS)
+      return;
+    OLED_Init();
+    if (!oled_ready)
+      return;
+  }
+
+  if ((uint32_t)(now - warning_tick) >= I2C_WARNING_MS)
+    reported_errors = 0U;
+  uint8_t errors = i2c_errors_pending | reported_errors;
+  if (external_dac_error)
+    errors |= SCREEN_I2C_ERROR_MCP;
+
+  if (page == OLED_PAGE_COUNT &&
+      (errors != frame_errors || i2c_errors_pending ||
+       (!errors && (display_dirty ||
+                     (screen == SCREEN_ADC && dac_display_dirty &&
+                      (uint32_t)(now - display_tick) >= DAC_DISPLAY_REFRESH_MS))))) {
+    frame_errors = errors;
+    if (errors) {
+      SSD1306_DispBK(oled_address, NoInvert);
+      Screen_DrawI2CError(errors);
+    } else {
+      display_dirty = 0U;
+      dac_display_dirty = 0U;
+      display_tick = now;
+      DrawDisplay();
+    }
+    page = 0U;
+  }
+
+  /* Poll keys between OLED pages instead of blocking for a full frame. */
+  if (page < OLED_PAGE_COUNT) {
+    if (ssd1306_UpdatePage(page) != 0) {
+      OLED_Failed();
+      page = OLED_PAGE_COUNT;
+    } else if (++page == OLED_PAGE_COUNT && (i2c_errors_pending & frame_errors)) {
+      reported_errors = frame_errors;
+      i2c_errors_pending &= ~frame_errors;
+      warning_tick = HAL_GetTick();
+    }
   }
 }
 
@@ -278,17 +341,17 @@ int main(void)
   HAL_Delay(200);
   ServiceExternalDAC(HAL_GetTick());
   OLED_Init();
-  if (oled_ready && calibration_failed) {
+  if (oled_ready && calibration_failed && !i2c_errors_pending) {
     SSD1306_DispBK(oled_address, NoInvert);
     Screen_DrawCalibrationWarning(calibration_failed);
-    ssd1306_UpdateScreen();
-    HAL_Delay(2000U);
+    if (ssd1306_UpdateScreen() == 0)
+      HAL_Delay(2000U);
+    else
+      OLED_Failed();
   }
   Pulse_Init();
-  uint32_t display_tick = HAL_GetTick();
   adc_valid = Analog_Read(adc_values);
   display_dirty = 1;
-  uint8_t display_page = OLED_PAGE_COUNT;
 
 
   /* USER CODE END 2 */
@@ -316,20 +379,7 @@ int main(void)
         display_dirty = 1;
       }
     }
-    if (oled_ready) {
-      if (display_page == OLED_PAGE_COUNT &&
-          (display_dirty || (screen == SCREEN_ADC && dac_display_dirty &&
-                             (uint32_t)(now - display_tick) >= DAC_DISPLAY_REFRESH_MS))) {
-        display_dirty = 0;
-        dac_display_dirty = 0;
-        display_tick = now;
-        DrawDisplay();
-        display_page = 0;
-      }
-      /* Poll keys between OLED pages instead of blocking for a full frame. */
-      if (display_page < OLED_PAGE_COUNT)
-        ssd1306_UpdatePage(display_page++);
-    }
+    ServiceDisplay(now);
 
   }
   /* USER CODE END 3 */

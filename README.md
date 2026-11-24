@@ -30,8 +30,14 @@ i sześć nastaw DAC. Każde pole częstotliwości mieści pięć cyfr i dopisek
 `Hz`. Wynik powyżej zakresu jest wyświetlany jako `>99999Hz`. Nastawy DAC zajmują dwie linie
 po trzy liczby bez etykiet. Kolejność od lewej do prawej: u góry PA4, PA5,
 MCP4728 A, u dołu MCP4728 B, C, D. Pozioma kreska pod liczbą wskazuje
-wybrane wyjście. Symbol `!` z prawej strony drugiego wiersza ADC sygnalizuje
-błąd zapisu MCP4728. Widoczne liczby są nastawami w zakresie 0–4095.
+wybrane wyjście. Widoczne liczby są nastawami w zakresie 0–4095.
+
+Błąd komunikacji na I2C2 z OLED lub MCP4728 zastępuje bieżący ekran
+komunikatem `ERROR I2C` i wierszem `OLED`, `MCP4728A1` lub
+`MCP4728A1 + OLED`. Firmware ponawia inicjalizację OLED co 250 ms.
+Jeżeli transmisja do OLED jest niemożliwa, komunikat pojawi się po odzyskaniu
+łączności. Po przesłaniu komunikatu firmware wyświetla go przez co najmniej
+2 s i wraca do bieżącego ekranu, gdy zapisy DAC ponownie działają.
 
 ## ADC i DAC
 

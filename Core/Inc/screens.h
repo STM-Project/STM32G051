@@ -5,10 +5,15 @@
 #include "mcp4728.h"
 /* USER CODE BEGIN MEASUREMENTS */
 #define DAC_VALUE_COUNT (INTERNAL_DAC_COUNT + MCP4728_CHANNEL_COUNT)
+enum {
+  SCREEN_I2C_ERROR_MCP = 1U << 0,
+  SCREEN_I2C_ERROR_OLED = 1U << 1
+};
+void Screen_DrawI2CError(uint8_t sources);
 void Screen_DrawCalibrationWarning(uint8_t failed);
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
                        const uint16_t dac[DAC_VALUE_COUNT], uint8_t selected,
-                       const uint32_t hz[2], uint8_t external_dac_error);
+                       const uint32_t hz[2]);
 /* USER CODE END MEASUREMENTS */
 /* USER CODE BEGIN FACE */
 void Screen_DrawFace(uint8_t frame);

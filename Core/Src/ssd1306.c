@@ -26,46 +26,41 @@ static uint8_t ssd1306_WriteCommand(uint8_t command)
 //
 uint8_t ssd1306_Init(void)
 {
-    // Wait for the screen to boot
-    int status = 0;
-	SSD1306.Inverted = 0;
-
-    // Init LCD
-    status += ssd1306_WriteCommand(0xAE);   // Display off
-    status += ssd1306_WriteCommand(0x20);   // Set Memory Addressing Mode
-    status += ssd1306_WriteCommand(0x10);   // 00,Horizontal Addressing Mode;01,Vertical Addressing Mode;10,Page Addressing Mode (RESET);11,Invalid
-    status += ssd1306_WriteCommand(0xB0);   // Set Page Start Address for Page Addressing Mode,0-7
-    status += ssd1306_WriteCommand(0xC8);   // Set COM Output Scan Direction
-    status += ssd1306_WriteCommand(0x00);   // Set low column address
-    status += ssd1306_WriteCommand(0x10);   // Set high column address
-    status += ssd1306_WriteCommand(0x40);   // Set start line address
-    status += ssd1306_WriteCommand(0x81);   // set contrast control register
-    status += ssd1306_WriteCommand(0xFF);
-    status += ssd1306_WriteCommand(0xA1);   // Set segment re-map 0 to 127
-    status += ssd1306_WriteCommand(0xA6);   // Set normal display
-
-    status += ssd1306_WriteCommand(0xA8);   // Set multiplex ratio(1 to 64)
-    status += ssd1306_WriteCommand(SSD1306_HEIGHT - 1);
-
-    status += ssd1306_WriteCommand(0xA4);   // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
-    status += ssd1306_WriteCommand(0xD3);   // Set display offset
-    status += ssd1306_WriteCommand(0x00);   // No offset
-    status += ssd1306_WriteCommand(0xD5);   // Set display clock divide ratio/oscillator frequency
-    status += ssd1306_WriteCommand(0xF0);   // Set divide ratio
-    status += ssd1306_WriteCommand(0xD9);   // Set pre-charge period
-    status += ssd1306_WriteCommand(0x22);
-
-    status += ssd1306_WriteCommand(0xDA);   // Set com pins hardware configuration
-    status += ssd1306_WriteCommand(SSD1306_COM_LR_REMAP << 5 | SSD1306_COM_ALTERNATIVE_PIN_CONFIG << 4 | 0x02);
-
-    status += ssd1306_WriteCommand(0xDB);   // Set vcomh
-    status += ssd1306_WriteCommand(0x20);   // 0x20,0.77xVcc
-    status += ssd1306_WriteCommand(0x8D);   // Set DC-DC enable
-    status += ssd1306_WriteCommand(0x14);   //
-    status += ssd1306_WriteCommand(0xAF);   // Turn on SSD1306 panel
-
-    if (status != 0) {
-        return 1;
+    static const uint8_t commands[] = {
+        0xAE,   // Display off
+        0x20,   // Set Memory Addressing Mode
+        0x10,   // 00,Horizontal Addressing Mode;01,Vertical Addressing Mode;10,Page Addressing Mode (RESET);11,Invalid
+        0xB0,   // Set Page Start Address for Page Addressing Mode,0-7
+        0xC8,   // Set COM Output Scan Direction
+        0x00,   // Set low column address
+        0x10,   // Set high column address
+        0x40,   // Set start line address
+        0x81,   // set contrast control register
+        0xFF,
+        0xA1,   // Set segment re-map 0 to 127
+        0xA6,   // Set normal display
+        0xA8,   // Set multiplex ratio(1 to 64)
+        SSD1306_HEIGHT - 1,
+        0xA4,   // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
+        0xD3,   // Set display offset
+        0x00,   // No offset
+        0xD5,   // Set display clock divide ratio/oscillator frequency
+        0xF0,   // Set divide ratio
+        0xD9,   // Set pre-charge period
+        0x22,
+        0xDA,   // Set com pins hardware configuration
+        SSD1306_COM_LR_REMAP << 5 | SSD1306_COM_ALTERNATIVE_PIN_CONFIG << 4 | 0x02,
+        0xDB,   // Set vcomh
+        0x20,   // 0x20,0.77xVcc
+        0x8D,   // Set DC-DC enable
+        0x14,   //
+        0xAF,   // Turn on SSD1306 panel
+    };
+    SSD1306.Initialized = 0;
+    SSD1306.Inverted = 0;
+    for (size_t i = 0; i < sizeof(commands); ++i) {
+        if (ssd1306_WriteCommand(commands[i]) != 0)
+            return 1;
     }
 
     // Clear screen
@@ -73,7 +68,8 @@ uint8_t ssd1306_Init(void)
     else 				 ssd1306_Fill(Black);
 
     // Flush buffer to screen
-    ssd1306_UpdateScreen();
+    if (ssd1306_UpdateScreen() != 0)
+        return 1;
 
     // Set default values for screen object
     SSD1306.CurrentX = 0;
@@ -108,18 +104,23 @@ void ssd1306_Clr(void){
     else 				 ssd1306_Fill(Black);
 }
 
-void ssd1306_UpdatePage(uint8_t page)
+uint8_t ssd1306_UpdatePage(uint8_t page)
 {
-    ssd1306_WriteCommand(0xB0 + page);
-    ssd1306_WriteCommand(0x00);
-    ssd1306_WriteCommand(0x10);
-    SSD1306_WriteData(ssd1306Addr, &SSD1306_Buffer[SSD1306_WIDTH * page], SSD1306_WIDTH);
+    if (page >= SSD1306_HEIGHT / 8 ||
+        ssd1306_WriteCommand(0xB0 + page) != 0 ||
+        ssd1306_WriteCommand(0x00) != 0 ||
+        ssd1306_WriteCommand(0x10) != 0)
+        return 1;
+    return SSD1306_WriteData(ssd1306Addr, &SSD1306_Buffer[SSD1306_WIDTH * page], SSD1306_WIDTH);
 }
 
-void ssd1306_UpdateScreen(void)
+uint8_t ssd1306_UpdateScreen(void)
 {
-    for (uint8_t page = 0; page < SSD1306_HEIGHT / 8; ++page)
-        ssd1306_UpdatePage(page);
+    for (uint8_t page = 0; page < SSD1306_HEIGHT / 8; ++page) {
+        if (ssd1306_UpdatePage(page) != 0)
+            return 1;
+    }
+    return 0;
 }
 
 //

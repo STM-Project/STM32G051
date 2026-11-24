@@ -58,6 +58,7 @@ uint8_t SSD1306_WriteData(uint16_t, uint8_t *, uint16_t);
 static uint8_t frame[1024], frames[4][1024], page, error;
 static uint16_t address=0x78;
 static unsigned delays, writes;
+static uint8_t fail_oled_command, fail_oled_data;
 unsigned check_bounds=1;
 static const char *station_name="Radio Krakow";
 static uint16_t station_frequency=10160, station_divider=3179;
@@ -68,11 +69,13 @@ uint16_t Radio_Divider(void) { return station_divider; }
 uint8_t Radio_Errors(void) { return error; }
 uint8_t SSD1306_WriteCommand(uint16_t addr, uint8_t command) {
   assert(addr==address);
+  if (fail_oled_command) return 1;
   if (command>=0xB0 && command<=0xB7) page=command-0xB0;
   return 0;
 }
 uint8_t SSD1306_WriteData(uint16_t addr, uint8_t *data, uint16_t size) {
   assert(addr==address && size==128 && page<8);
+  if (fail_oled_data) return 3;
   memcpy(frame+page*128,data,size); ++writes;
   return 0;
 }
@@ -105,7 +108,7 @@ int main(void) {
                            {">99999",">99999"}};
   for (unsigned selected=0; selected<DAC_VALUE_COUNT; ++selected) {
     SSD1306_DispBK(address,NoInvert);
-    Screen_DrawAnalog(adc,1,dac,selected,hz[selected%3],selected==5);
+    Screen_DrawAnalog(adc,1,dac,selected,hz[selected%3]);
     ssd1306_UpdateScreen();
     char line[18];
     for (unsigned i=0; i<ADC_INPUT_COUNT; ++i) {
@@ -118,7 +121,7 @@ int main(void) {
     assert_text(43,26,"Hz",7);
     assert_text(107,26,"Hz",7);
     assert(pixels(57,26,7,10)==0 && pixels(121,26,7,10)==0);
-    assert((pixels(119,12,7,10)>0)==(selected==5));
+    assert(pixels(119,12,7,10)==0);
     for (unsigned i=0; i<DAC_VALUE_COUNT; ++i) {
       unsigned x=(i%3)*42, y=40+(i/3)*12;
       snprintf(line,sizeof(line),"%4u",(unsigned)dac[i]);
@@ -127,6 +130,28 @@ int main(void) {
       assert(pixels(x,y+10,28,1)==(i==selected ? 28 : 0));
     }
   }
+  const char *causes[] = {"MCP4728A1", "OLED", "MCP4728A1 + OLED"};
+  for (uint8_t sources=1; sources<=3; ++sources) {
+    const char *cause = causes[sources-1];
+    SSD1306_DispBK(address,NoInvert);
+    Screen_DrawI2CError(sources);
+    assert(ssd1306_UpdateScreen()==0);
+    assert(pixels(14,16,99,18)>0);
+    assert_text((128-strlen(cause)*7)/2,40,cause,7);
+    assert(pixels(0,0,128,14)==0 && pixels(0,52,128,12)==0);
+  }
+  writes=0;
+  fail_oled_command=1;
+  assert(ssd1306_UpdatePage(0)!=0 && writes==0);
+  assert(ssd1306_Init()!=0 && writes==0);
+  fail_oled_command=0;
+  fail_oled_data=1;
+  assert(ssd1306_UpdatePage(0)!=0 && writes==0);
+  assert(ssd1306_UpdateScreen()!=0 && writes==0);
+  assert(ssd1306_Init()!=0 && writes==0);
+  fail_oled_data=0;
+  assert(ssd1306_Init()==0 && writes==8);
+
   /* A glyph ending exactly at the right/bottom edges is valid. */
   SSD1306_DispBK(address,NoInvert);
   ssd1306_SetCursor(121,54);
@@ -234,7 +259,7 @@ int main(void) {
     }
     if (i==40) assert(pixels(111,18,11,9)>0);
   }
-  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, PCF editor, face animation, 24 FM presets/tuning/errors, no clipping");
+  puts("PASS: six ADC values, two frequencies and two DAC rows, selection, edges, demos, PCF editor, face animation, 24 FM presets/tuning/errors, I2C warnings and OLED recovery, no clipping");
 }
 '''
     (out/'test.c').write_text(harness.replace('PRESET_ROWS', presets))

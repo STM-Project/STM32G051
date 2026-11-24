@@ -93,9 +93,20 @@ void Screen_DrawCalibrationWarning(uint8_t failed)
 }
 
 
+void Screen_DrawI2CError(uint8_t sources)
+{
+  const char *cause = "MCP4728A1 + OLED";
+  if (sources == SCREEN_I2C_ERROR_MCP)
+    cause = "MCP4728A1";
+  else if (sources == SCREEN_I2C_ERROR_OLED)
+    cause = "OLED";
+  SSD1306_TxtMiddX(0, 16, "ERROR I2C", Font_11x18, NoInvert);
+  SSD1306_TxtMiddX(0, 40, cause, Font_7x10, NoInvert);
+}
+
 void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
                        const uint16_t dac[DAC_VALUE_COUNT], uint8_t selected,
-                       const uint32_t hz[2], uint8_t external_dac_error)
+                       const uint32_t hz[2])
 {
   char line[18];
   for (uint8_t i = 0; i < ADC_INPUT_COUNT; ++i) {
@@ -105,8 +116,6 @@ void Screen_DrawAnalog(const uint16_t adc[ADC_INPUT_COUNT], uint8_t valid,
       snprintf(line, sizeof(line), "----");
     SSD1306_TxtCompact((i % 3U) * 42U, (i / 3U) * 12U, line, Font_7x10);
   }
-  if (external_dac_error)
-    SSD1306_TxtCompact(119, 12, "!", Font_7x10);
 
   for (uint8_t i = 0; i < 2U; ++i) {
     uint8_t x = i * (SSD1306_WIDTH / 2U);
